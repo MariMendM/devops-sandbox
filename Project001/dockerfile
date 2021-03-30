@@ -1,0 +1,4 @@
+FROM httpd:latest
+LABEL Project001 DevOps demo
+COPY ./website /usr/local/apache2/htdocs/
+EXPOSE 80

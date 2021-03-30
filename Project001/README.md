@@ -16,6 +16,7 @@ PS.: If using AWS EC2 instance to run the demo, CloudFormation file included dep
   * cleans local images
   * IMPORTANT
 	* check Jenkins preparation section for requirements and pipeline configuration.
+  <details><summary>corresponding diagram</summary><img src="documents/jenkins-diagram.png"></details>
 * File [dockerfile](dockerfile):
   * built from image httpd;
   * copies website folder to Apache's standard folder;

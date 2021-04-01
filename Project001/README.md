@@ -27,8 +27,7 @@ All diagrams included in documentation are Draw.io's editable PNGs.
     * 1 route table (for public subnet);
     * 1 internet gateway (route in public route table);
     * 1 network NACL (for public traffic) <a name="firewallrules"></a>
-      * HTTP/HTTPS/Ephemeral for In/Outbound
-      * SSH for Inbound (if necessary)
+      * HTTP/HTTPS/SSH/Ephemeral for In/Outbound
       * SMTP for Outbound
       * \*\*\* If not using AWS stack for demo, remember to apply the above firewall rules
   * creates security group for instance
@@ -48,8 +47,8 @@ All diagrams included in documentation are Draw.io's editable PNGs.
 
 1. Create stack using cloudformation.yml\*
    * EC2 instance will already have Docker and Jenkins installed
-1. Open jenkins (http:\\EC2_IP:8080)
-   * EC2_IP is outupt by cloudformation under "public ip for ec2"
+1. Open jenkins (http:\\SERVER_IP:8080)
+   * SERVER_IP is outupt by cloudformation under "public ip for ec2"
    * Jenkins URL is also output by cloudformation
 
 \* If not using AWS stack for demo, do not forget firewall rules as described in [CloudFormation description](#firewallrules)
@@ -58,14 +57,18 @@ All diagrams included in documentation are Draw.io's editable PNGs.
 
 1. Connect to server by SSH to acquire unlock password
    * sudo cat /var/lib/jenkins/secrets/initialAdminPassword (or folder indicated on Jenkins' welcome screen)
-1. Install plugins (Github, Docker Pipeline, Email Extension)
+1. Install plugins
+   * names
+     * Github Plugin
+     * Docker Pipeline
+     * Email Extension Plugin
    * some of they may not be available from installing screen; necessary to install later, after Jenkins initialization
 1. Create user/password
 1. Save and finish
 
 ### Configure Jenkins for integration to GitHub
 
-Details at [GitHub Server Configuration at Jenkins](https://github.com/MariMendM/devops-sandbox/wiki/Jenkins#JenkinsGitHub)
+Details at [GitHub integration](https://github.com/MariMendM/devops-sandbox/wiki/Jenkins#JenkinsGitHub). The subsection describing webhook configuration requires Jenkins' pipeline already created.
 
 ### Configure Jenkins for integration to Docker/DockerHub
 
@@ -79,5 +82,4 @@ Details at [Configuring Extended email notification](https://github.com/MariMend
 
 Pipeline can be created based in [jenkins-pipeline-config.xml](jenkins-pipeline-config.xml). Main points to remeber:
 * Parameterize pipeline with variables, as required by jenkinsfile
-* Determine "Project001" as folder for repositoy clonning
 * For GitHub's webhook to work, the pipeline must be manually run at least once

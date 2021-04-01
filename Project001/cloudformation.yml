@@ -219,7 +219,7 @@ Resources:
          From: 22
          To: 22
 
-  NetworkACLPubOutboundHTTP: #Allow requests from servers to external webservers; install (apt-get); maintenance
+  NetworkACLPubOutboundHTTP: #Allow requests from servers to external webservers; install (apt-get)
     Type: AWS::EC2::NetworkAclEntry
     DependsOn: NetworkACLPub
     Properties:
@@ -233,7 +233,7 @@ Resources:
          From: 80
          To: 80
 
-  NetworkACLPubOutboundHTTPS: #Allow requests from servers to external webservers; install (apt-get); maintenance
+  NetworkACLPubOutboundHTTPS: #Allow requests from servers to external webservers; install (apt-get)
     Type: AWS::EC2::NetworkAclEntry
     DependsOn: NetworkACLPub
     Properties:
@@ -260,6 +260,20 @@ Resources:
        PortRange:
          From: 1024
          To: 65535
+
+  NetworkACLPubOutboundSSH: #Allow requests from server to external hosts by SSH
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:    
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 130
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 22
+         To: 22
 
   NetworkACLPubOutboundSMTP: #Allow server mail sending by SMTP
     Type: AWS::EC2::NetworkAclEntry
@@ -329,7 +343,7 @@ Resources:
       ToPort: 8080
       CidrIp: 0.0.0.0/0
 
-  SecGroup4PubServersInboundSSH: #Allow external SSH requests to linux servers; maintenance
+  SecGroup4PubServersInboundSSH: #Allow external SSH requests to linux servers
     Type: 'AWS::EC2::SecurityGroupIngress'
     DependsOn: SecGroup4PubServers
     Properties:

@@ -1,27 +1,44 @@
 
-//ATTENTION! If a container is running from DOCKER_REGISTRY_REPOANDIMG:latest before build, it will be affected by the step removing containers! Build will also fail!
+//ATTENTION!
+//If a container is running from DOCKER_REGISTRY_REPOANDIMG:latest before build, it will be affected by the step removing containers! Build will also fail!
 
 pipeline {
     agent any
 
 	environment { 
-        DOCKER_REGISTRY_REPOANDIMG = "mariane3m/desafio01" 
+        DOCKER_REGISTRY_REPOANDIMG = "$DockerRegistryRepoAndImg"
         DOCKER_REGISTRY_CREDENTIAL = 'DockerhubUsrTokenCredential'
         DOCKER_IMAGE = ''
-		TO_MAIL = 'labs.marimm@gmail.com'
+		GITHUB_REPO = "$GitHubRepoURL"
+		GITHUB_CREDENTIAL = 'GithubSSHCredential'
+		TO_MAIL = "$ToMail"
     }	
 
     stages {
-        stage('Cloning github repository using GithubSSHCredential...') {
+        stage('Cloning github repository...') {
             steps {
-				git url: 'git@github.com:MariMendM/ctrein-devops.git', credentialsId: 'GithubSSHCredential'
+			    println("Using $GITHUB_CREDENTIAL")
+
+				//Full checkout of GITHUB_REPO, for when this demo project is the root content of repo in GitHub
+				//git url: GITHUB_REPO, credentialsId: GITHUB_CREDENTIAL
+				
+				//Sparse-checkout from GITHUB_REPO/Project001; whenever Project001's content is used, define dir
+				checkout(
+					[$class: 'GitSCM', 
+					 //branches: [[name: '*/master']],
+					 doGenerateSubmoduleConfigurations: false,
+					 extensions: [[$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [[$class:'SparseCheckoutPath', path:'Project001/']]]],
+					 submoduleCfg: [],
+					 userRemoteConfigs: [[credentialsId: GITHUB_CREDENTIAL, url: GITHUB_REPO]]
+					]
+				)
             }
         }
     	
         stage('Building dockerfile from repo...') {
             steps {
 				script {
-					DOCKER_IMAGE = docker.build(DOCKER_REGISTRY_REPOANDIMG)
+					DOCKER_IMAGE = docker.build(DOCKER_REGISTRY_REPOANDIMG, "./Project001")
 				}
 			}
 		}

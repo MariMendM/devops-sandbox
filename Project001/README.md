@@ -82,4 +82,5 @@ Details at [Configuring Extended email notification](https://github.com/MariMend
 
 Pipeline can be created based in [jenkins-pipeline-config.xml](jenkins-pipeline-config.xml). Main points to remeber:
 * Parameterize pipeline with variables, as required by jenkinsfile
+* Define configuration "Pipeline script from SCM", indicating "Project001/jenkinsfile" as script path
 * For GitHub's webhook to work, the pipeline must be manually run at least once

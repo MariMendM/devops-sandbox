@@ -1,3 +1,3 @@
 #!/bin/bash
 
-sudo apt install boost libcpprest-dev -y
+sudo apt install libboost-all-dev libcpprest-dev -y

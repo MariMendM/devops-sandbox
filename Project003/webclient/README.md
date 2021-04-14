@@ -15,7 +15,7 @@ While webclient instance-id is updated on webpage's refresh, the serverapp insta
 
 ## Repo files overview
 
-* File [/config/aws-backend-url](/config/aws-backend-url]):
+* File [/config/aws-backend-url](config/aws-backend-url]):
   * Contains the URL to access REST API provided by serverapp
   * Considering that this demo only request instance-id from backend servers, the URL here stored already contains the path included (/api/ec2/instance-id)
 * Folder /documents:

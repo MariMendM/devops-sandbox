@@ -11,13 +11,12 @@ All diagrams included in documentation are Draw.io's editable PNGs.
 ## Repo files overview
 
 * Folder webclient:
-  * TO DO
-  * <details><summary>corresponding diagram</summary><img src="webclient/documents/todo.png"></details>
+  * simple webpage intended to provide a "visualization" of AWS infrastructure implemented in this demo. It actually only displays AWS EC2 meta-data from instances hosting the demo (documentation [here](webclient/README.md))
+  * <details><summary>corresponding diagram</summary><img src="webclient/documents/modules-organization-diagram.png"></details>
 * Folder serverapp:
-  * TO DO
-  * copies website folder to Apache's standard folder;
-  * <details><summary>corresponding diagram</summary><img src="serverapp/documents/todo.png"></details>
-* File [cloudformation.yml](cloudformation.yml):
+  * simple REST API developed in C++ to return json responses, with focus for this demo on the HTTP GET method for path /ec2/instance-id (documentation [here](serverapp/README.md))
+  * <details><summary>corresponding diagram</summary><img src="serverapp/documents/restapi-logic-diagram.png"></details>
+* TODO TODO File [cloudformation.yml](cloudformation.yml):
   * creates very (very!) simple VPC
     * 1 subnet (public);
     * 1 route table (for public subnet);
@@ -35,7 +34,7 @@ All diagrams included in documentation are Draw.io's editable PNGs.
     * Jenkins and Docker installed by cloud init
    <details><summary>corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details>
 * File [appspec.yml](appspec.yml) and appspec_scripts folder:
-  * TO DO
+  * TODO
 
 ## Preparing environment
 

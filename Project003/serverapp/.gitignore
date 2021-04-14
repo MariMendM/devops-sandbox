@@ -1,0 +1,10 @@
+# Folders created by makefile
+build/*
+bin/*
+
+# Compiled Object files
+*.o
+
+# Executables
+*.out
+*.app

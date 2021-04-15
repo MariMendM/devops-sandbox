@@ -25,7 +25,7 @@ All diagrams included in documentation are Draw.io's editable PNGs.
 	* Full "inside group" Docker Swarm Nodes (UDP 7496) allowed for Inbound
 	* Full "inside group" Docker Swarm Network Overlay (UDP 4789) allowed for Inbound
 	* Docker Swarm Visualizer (TCP 8080) allowed for Inbound to CIDR 0.0.0.0/0
-  * creates 4 EC2 instances (one in each subnet) to CIDR VPC (x.x.x.x/16)
+  * creates 4 EC2 instances (one in each subnet)
     * t2.micro;
     * ubuntu 20.04;
     * Docker and Docker-Compose installed by cloud init

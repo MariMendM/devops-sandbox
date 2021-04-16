@@ -5,6 +5,9 @@ if ( $url == false ) {
 	return;
 }
 
+//Removing EOL characters; some editors, like vim, add them (mainly LF)
+$url = str_replace (array("\r\n", "\n", "\r"), '', $url);
+
 $jsonResponse = file_get_contents($url);
 if ( $jsonResponse == false ) {
     echo json_encode( array('stat'=>false, 'msg'=>'Error requesting service!') );

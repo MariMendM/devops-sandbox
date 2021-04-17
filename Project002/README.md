@@ -25,7 +25,7 @@ Demonstrate Ansible's playbook with simple tasks.
 
 ### Create AWS CloudFormation stack
 
-Create stack using cloudformation.yml
+Create stack using cloudformation.yml. Mandatory to have a key-pair already created before to run the stack
 * EC2 instances will already have Ansible installed
 
 ### Configure Ansible controller/nodes (TO-DO)

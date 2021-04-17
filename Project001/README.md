@@ -32,7 +32,6 @@ All diagrams included in documentation are Draw.io's editable PNGs.
       * \*\*\* If not using AWS stack for demo, remember to apply the above firewall rules
   * creates security group for instance
     * HTTP/HTTPS/SSH/8080 for Inbound (8080 = Jenkins)
-    * SSH for Inbound (if necessary)
   * creates an EC2 instance
     * t2.micro;
     * ubuntu 20.04;
@@ -45,7 +44,7 @@ All diagrams included in documentation are Draw.io's editable PNGs.
 
 ### Create AWS CloudFormation stack
 
-1. Create stack using cloudformation.yml\*
+1. Create stack using cloudformation.yml\*. Mandatory to have a key-pair already created before to run the stack
    * EC2 instance will already have Docker and Jenkins installed
 1. Open jenkins (http:\\SERVER_IP:8080)
    * SERVER_IP is outupt by cloudformation under "public ip for ec2"

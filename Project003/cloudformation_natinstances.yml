@@ -1,0 +1,1316 @@
+#----------------------------------------------------------------------
+Description:
+  Contains
+  - 1 VPC;
+  - 4 subnets (2 public, 2 private);
+  - 3 route tables (1 for public, 1 for each private subnet);
+  - 1 internet gateway (route in public route table);
+  - 2 NACLs (1 for public, 1 for private traffic);
+  - 2 EIPs for NAT ec2 instances;
+  - 1 security group for NAT ec2 instances;
+  - 2 security groups for APP ec2 instances (1 to public, 1 to private);
+  - 1 security group for ELB of public instances;
+  - 1 security group for ELB of private instances;
+  - 4 EC2 APP instances (2 public, 2 private); CodeDeployAgent and prereqs of front/back apps installed;
+  - 2 EC2 NAT instances (public, one for each private route table); NAT configurations executed;
+  - 2 application ELBs (1 for public, 1 for private instances), TargetGroups/Listeners included;
+  By default VPC also deploys 1 NetworkACL and 1 SecurityGroup not reachable for changes by CloudFormation
+
+#----------------------------------------------------------------------
+#Metadata to define presentation of input parameters (AWS console interface)
+#----------------------------------------------------------------------
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "General Configuration"
+        Parameters:
+          - EnvironmentName
+          - EnvType
+      - Label:
+          default: "Network Configuration"
+        Parameters: 
+          - VpcCIDR
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR
+          - PrivateSubnet1CIDR
+          - PrivateSubnet2CIDR
+      - Label:
+          default: "EC2 Configuration"
+        Parameters:
+          - KeyPairName        
+          - Ip4ServerConnection
+    ParameterLabels:
+      EnvironmentName:
+        default: Environment Name
+      EnvType:
+        default: Environment Type
+      VpcCIDR: 
+        default: VPC IP range
+      PublicSubnet1CIDR:
+        default: First Public Subnet VPC IP range
+      PublicSubnet2CIDR:
+        default: Second Public Subnet VPC IP range
+      PrivateSubnet1CIDR:
+        default: First Private Subnet VPC IP range
+      PrivateSubnet2CIDR:
+        default: Second Private Subnet VPC IP range
+      Ip4ServerConnection:
+        deafult: IP address (or range) for connection to public servers
+      KeyPairName:
+        default: KeyPair for EC2 instances
+
+#----------------------------------------------------------------------
+#Input parameters (information from user)
+#----------------------------------------------------------------------
+Parameters:
+
+  EnvironmentName:
+    Description: Enter an environment name to be prefixed to tag 'Name' of resources (max size 15)
+    Type: String
+    AllowedPattern: ^\S+$
+    MaxLength: 15
+    ConstraintDescription: cannot have spaces neither be empty
+
+  EnvType: 
+    Description: Choose environment type
+    Type: String
+    AllowedValues: 
+      - Production
+      - Maintenance
+    Default: Maintenance      
+    ConstraintDescription: must specify one of the options
+    
+  VpcCIDR:
+    Description: Enter the IP range (CIDR notation) for VPC
+    Type: String
+    Default: 10.10.0.0/16
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
+    ConstraintDescription: must be a valid CIDR range
+
+  PublicSubnet1CIDR:
+    Description: Enter the IP range (CIDR notation) for the first public subnet
+    Type: String
+    Default: 10.10.10.0/24
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
+    ConstraintDescription: must be a valid CIDR range
+
+  PublicSubnet2CIDR:
+    Description: Enter the IP range (CIDR notation) for the second public subnet
+    Type: String
+    Default: 10.10.11.0/24
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
+    ConstraintDescription: must be a valid CIDR range
+
+  PrivateSubnet1CIDR:
+    Description: Enter the IP range (CIDR notation) for the first private subnet
+    Type: String
+    Default: 10.10.20.0/24
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
+    ConstraintDescription: must be a valid CIDR range
+
+  PrivateSubnet2CIDR:
+    Description: Enter the IP range (CIDR notation) for the second private subnet
+    Type: String
+    Default: 10.10.21.0/24
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
+    ConstraintDescription: must be a valid CIDR range
+
+  Ip4ServerConnection:
+    Description: Enter the IP address (or CIDR range) for connections SSH/RDP/ICMP to public servers (USED ONLY BY DEV ENVTYPE)
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){0,1}$
+    ConstraintDescription: must be an IP or CIDR range
+    
+  KeyPairName:
+    Description: Enter keypair name for EC2 instances
+    Type: AWS::EC2::KeyPair::KeyName
+
+#----------------------------------------------------------------------
+#Conditions for resource configuration
+#----------------------------------------------------------------------
+Conditions:
+
+  IsEnvMaintenance: !Equals [ !Ref EnvType, Maintenance ] #Used to turn on/off some in/outbound rules of NACLs/SecGroups (via update stack)
+
+#----------------------------------------------------------------------
+#Resources definition
+#----------------------------------------------------------------------
+Resources:
+
+  # VPC #############################################################################
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-vpc
+
+  # Public and Private Subnets ------------------------------------------------------
+  SubnetPub1:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]   #Selects 1st AZ of current zone
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-subnet-pub1
+
+  SubnetPub2:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC    
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]   #Selects 2nd AZ of current zone
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-subnet-pub2
+
+  SubnetPvt1:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC    
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]   #Selects 1st AZ of current zone
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-subnet-pvt1
+
+  SubnetPvt2:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC    
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]   #Selects 2nd AZ of current zone
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-subnet-pvt2
+
+  # Internet Gateway ----------------------------------------------------------------
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-igw
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn:
+      - VPC
+      - InternetGateway
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # NAT Instances EIP ---------------------------------------------------------------
+  NatInstance1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn:
+      - InternetGatewayAttachment
+      - EC2NAT1
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref EC2NAT1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-eip-nat1ec2
+
+  NatInstance2EIP:
+    Type: AWS::EC2::EIP
+    DependsOn:
+      - InternetGatewayAttachment
+      - EC2NAT2
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref EC2NAT2
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-eip-nat2ec2
+
+  # Public Route Table --------------------------------------------------------------
+  RouteTablePub:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-rtb-pub
+    
+  RouteTablePubRouteA: #Internet traffic using Internet Gateway
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTablePub
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RouteTablePubAssociation2SubnetPub1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - RouteTablePub
+      - SubnetPub1
+    Properties:
+      RouteTableId: !Ref RouteTablePub
+      SubnetId: !Ref SubnetPub1
+
+  RouteTablePubAssociation2SubnetPub2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - RouteTablePub
+      - SubnetPub2
+    Properties:
+      RouteTableId: !Ref RouteTablePub
+      SubnetId: !Ref SubnetPub2
+
+  # Private Route Tables ------------------------------------------------------------
+  RouteTablePvt1:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-rtb-pvt1
+
+  RouteTablePvt1RouteA: #Internet traffic through EC2 NAT Instance 1
+    Type: AWS::EC2::Route
+    DependsOn:
+      - RouteTablePvt1
+      - EC2NAT1
+    Properties:
+      RouteTableId: !Ref RouteTablePvt1
+      DestinationCidrBlock: 0.0.0.0/0
+      InstanceId: !Ref EC2NAT1
+
+  RouteTablePvt1Association2SubnetPvt1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - RouteTablePvt1
+      - SubnetPvt1
+    Properties:
+      RouteTableId: !Ref RouteTablePvt1
+      SubnetId: !Ref SubnetPvt1
+
+  RouteTablePvt2:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-rtb-pvt2
+
+  RouteTablePvt2RouteA: #Internet traffic through EC2 NAT Instance 2
+    Type: AWS::EC2::Route
+    DependsOn:
+      - RouteTablePvt2
+      - EC2NAT2
+    Properties:
+      RouteTableId: !Ref RouteTablePvt2
+      DestinationCidrBlock: 0.0.0.0/0
+      InstanceId: !Ref EC2NAT2
+
+  RouteTablePvt2Association2SubnetPvt2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - RouteTablePvt2
+      - SubnetPvt2
+    Properties:
+      RouteTableId: !Ref RouteTablePvt2
+      SubnetId: !Ref SubnetPvt2
+
+  # Public Network ACL --------------------------------------------------------------
+  NetworkACLPub:
+    Type: AWS::EC2::NetworkAcl
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-nacl-pub
+
+  NetworkACLPubInboundHTTP: #Allow external requests to internal webservers
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 100
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 80
+         To: 80
+
+  NetworkACLPubInboundHTTPS: #Allow external requests to internal webservers
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 110
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 443
+         To: 443
+
+  NetworkACLPubInboundEphemeral: #Allow external responses to requests from servers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 120
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 1024
+         To: 65535
+
+  NetworkACLPubInboundSSH: #Allow external SSH requests to linux servers; maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Condition: IsEnvMaintenance
+    Properties:    
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 130
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: !Ref Ip4ServerConnection
+       PortRange:
+         From: 22
+         To: 22
+
+  NetworkACLPubInboundICMP: #Allow external pings to servers (and external responses to pings from server); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 140
+       Protocol: 1  #IANA code or -1 for 'All' (1=ICMP)
+       Icmp:
+         Code: -1
+         Type: -1
+       RuleAction: allow
+       CidrBlock: !Ref Ip4ServerConnection
+      
+  NetworkACLPubOutboundHTTP: #Allow requests from servers to external webservers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 100
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 80
+         To: 80
+
+  NetworkACLPubOutboundHTTPS: #Allow requests from servers to external webservers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 110
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 443
+         To: 443
+
+  NetworkACLPubOutboundEphemeral: #Allow server responses to external requests from clients
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 120
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 1024
+         To: 65535
+
+  NetworkACLPubOutboundSSH: #Allow internal SSH from public to private servers (jump host); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 130
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: !Ref Ip4ServerConnection
+       PortRange:
+         From: 22
+         To: 22
+
+  NetworkACLPubOutboundICMP: #Allow pings from servers (and responses from servers to external pings); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 140
+       Protocol: 1  #IANA code or -1 for 'All' (1=ICMP)
+       Icmp:
+         Code: -1
+         Type: -1
+       RuleAction: allow
+       CidrBlock: !Ref Ip4ServerConnection
+
+  NetworkACLPubAssociation2SubnetPub1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    DependsOn:
+      - NetworkACLPub
+      - SubnetPub1
+    Properties: 
+      NetworkAclId: !Ref NetworkACLPub
+      SubnetId: !Ref SubnetPub1
+      
+  # Private Network ACL -------------------------------------------------------------
+  NetworkACLPvt:
+    Type: AWS::EC2::NetworkAcl
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-nacl-pvt
+
+  NetworkACLPvtInboundAllInt: #Allow all internal traffic
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPvt
+    Properties:
+       NetworkAclId: !Ref NetworkACLPvt
+       Egress: false
+       RuleNumber: 100
+       Protocol: -1  #IANA code or -1 for 'All'
+       RuleAction: allow
+       CidrBlock: !Ref VpcCIDR
+       
+  NetworkACLPvtInboundEphemeral: #Allow external responses to requests from servers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPvt
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPvt
+       Egress: false
+       RuleNumber: 110
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 1024
+         To: 65535
+      
+  NetworkACLPvtOutboundAllInt: #Allow all internal traffic
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPvt
+    Properties:
+       NetworkAclId: !Ref NetworkACLPvt
+       Egress: true
+       RuleNumber: 100
+       Protocol: -1  #IANA code or -1 for 'All'
+       RuleAction: allow
+       CidrBlock: !Ref VpcCIDR
+
+  NetworkACLPvtOutboundHTTP: #Allow requests from servers to external webservers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPvt
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPvt
+       Egress: true
+       RuleNumber: 110
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 80
+         To: 80
+
+  NetworkACLPvtOutboundHTTPS: #Allow requests from servers to external webservers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPvt
+    Condition: IsEnvMaintenance
+    Properties:
+       NetworkAclId: !Ref NetworkACLPvt
+       Egress: true
+       RuleNumber: 120
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 443
+         To: 443
+
+  NetworkACLPvtAssociation2SubnetPvt1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    DependsOn:
+      - NetworkACLPvt
+      - SubnetPvt1
+    Properties: 
+      NetworkAclId: !Ref NetworkACLPvt
+      SubnetId: !Ref SubnetPvt1
+
+  # Security Group 4 NAT public servers ---------------------------------------------
+  SecGroup4NATServers:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: VPC
+    Properties:
+      GroupName: !Sub ${EnvironmentName}-nat-public-servers-sg
+      GroupDescription: "Security group for NAT public servers"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-sg-pubservers-nat
+
+  SecGroup4NATServersInboundHTTP4PvtSubnet1: #Allow requests from private servers to NAT instance
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4NATServers
+    Properties:
+      GroupId: !Ref SecGroup4NATServers
+      Description: "Inbound for HTTP"
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: !Ref PrivateSubnet1CIDR
+
+  SecGroup4NATServersInboundHTTP4PvtSubnet2: #Allow requests from private servers to NAT instance
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4NATServers
+    Properties:
+      GroupId: !Ref SecGroup4NATServers
+      Description: "Inbound for HTTP"
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: !Ref PrivateSubnet2CIDR
+
+  SecGroup4NATServersInboundHTTPS4PvtSubnet1: #Allow requests from private servers to NAT instance
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4NATServers
+    Properties:
+      GroupId: !Ref SecGroup4NATServers
+      Description: "Inbound for HTTPS"
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: !Ref PrivateSubnet1CIDR
+
+  SecGroup4NATServersInboundHTTPS4PvtSubnet2: #Allow requests from private servers to NAT instance
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4NATServers
+    Properties:
+      GroupId: !Ref SecGroup4NATServers
+      Description: "Inbound for HTTPS"
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: !Ref PrivateSubnet2CIDR
+
+  SecGroup4NATServersInboundSSH: #Allow external SSH requests to NAT instance; maintenance
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4NATServers
+    Condition: IsEnvMaintenance
+    Properties:
+      GroupId: !Ref SecGroup4NATServers
+      Description: "Inbound for SSH"
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Ref Ip4ServerConnection
+
+  # Security Group 4 app public servers ---------------------------------------------
+  SecGroup4PubServers:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: VPC
+    Properties:
+      GroupName: !Sub ${EnvironmentName}-app-public-servers-sg
+      GroupDescription: "Security group for public servers"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-sg-pubservers-app
+
+  SecGroup4PubServersInboundHTTP: #Allow external requests to internal webservers
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4PubServers
+    Properties:
+      GroupId: !Ref SecGroup4PubServers
+      Description: "Inbound for HTTP"
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+
+  SecGroup4PubServersInboundHTTPS: #Allow external requests to internal webservers
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4PubServers
+    Properties:
+      GroupId: !Ref SecGroup4PubServers
+      Description: "Inbound for HTTPS"
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+
+  SecGroup4PubServersInboundSSH: #Allow external SSH requests to linux servers; maintenance
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4PubServers
+    Condition: IsEnvMaintenance
+    Properties:
+      GroupId: !Ref SecGroup4PubServers
+      Description: "Inbound for SSH"
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Ref Ip4ServerConnection
+      
+  SecGroup4PubServersInboundICMP: #Allow external pings to servers; maintenance
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4PubServers
+    Condition: IsEnvMaintenance
+    Properties:
+      GroupId: !Ref SecGroup4PubServers
+      Description: "Inbound for ICMP"
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1
+      CidrIp: !Ref Ip4ServerConnection
+
+  # Security Group 4 app private servers --------------------------------------------
+  SecGroup4PvtServers:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: VPC
+    Properties:
+      GroupName: !Sub ${EnvironmentName}-app-private-servers-sg
+      GroupDescription: "Security group for private servers"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-sg-pvtservers-app
+
+  SecGroup4PvtServersInboundAllInt: #Allow all internal traffic
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4PvtServers
+    Properties:
+      GroupId: !Ref SecGroup4PvtServers
+      Description: "Inbound for all VPC internal traffic"
+      IpProtocol: -1
+      CidrIp: !Ref VpcCIDR
+
+  # Security Group 4 frontend ELB ---------------------------------------------------
+  SecGroup4ELBFrontend:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: VPC
+    Properties:
+      GroupName: !Sub ${EnvironmentName}-elb-frontend-sg
+      GroupDescription: "Security group for frontend load balancer"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-sg-frontend-ldblncr
+
+  SecGroup4ELBFrontendInboundHTTP: #For listener HTTP
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4ELBFrontend
+    Properties:
+      GroupId: !Ref SecGroup4ELBFrontend
+      Description: "Inbound for HTTP"
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+
+  # Security Group 4 backend ELB ----------------------------------------------------
+  SecGroup4ELBBackend:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: VPC
+    Properties:
+      GroupName: !Sub ${EnvironmentName}-elb-backend-sg
+      GroupDescription: "Security group for backend load balancer"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-sg-frontend-ldblncr
+
+  SecGroup4ELBBackendInboundTCP: #For listener 8080
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4ELBBackend
+    Properties:
+      GroupId: !Ref SecGroup4ELBBackend
+      Description: "Inbound for HTTP"
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8080
+      CidrIp: 0.0.0.0/0
+
+  ###################################################################################
+
+  # EC2 #############################################################################
+  # Public NAT instances ------------------------------------------------------------
+  EC2NAT1: #SubnetPvt1-SubnetPub1
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4NATServers
+      - NetworkACLPub
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPub1
+      SecurityGroupIds:
+        - !GetAtt SecGroup4NATServers.GroupId
+      SourceDestCheck: false #Required for NAT instance, once it can not be source/destination of traffic
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2-pub1-nat
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          sudo apt update -y
+          #
+          #Enabling IP Forward (not permanently)
+          sudo echo 1 > /proc/sys/net/ipv4/ip_forward
+          #
+          #NATting all packets to outside which are coming from VPC Network
+          sudo iptables -t nat -A POSTROUTING -o eth0 -s ${VpcCIDR} -j MASQUERADE
+
+  EC2NAT2: #SubnetPvt2-SubnetPub2
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4NATServers
+      - NetworkACLPub
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPub1
+      SecurityGroupIds:
+        - !GetAtt SecGroup4NATServers.GroupId
+      SourceDestCheck: false #Required for NAT instance, once it can not be source/destination of traffic
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2-pub2-nat
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          sudo apt update -y
+          #
+          #Enabling IP Forward (not permanently)
+          sudo echo 1 > /proc/sys/net/ipv4/ip_forward
+          #
+          #NATting all packets to outside which are coming from VPC Network
+          sudo iptables -t nat -A POSTROUTING -o eth0 -s ${VpcCIDR} -j MASQUERADE
+
+  # Public instance for app ---------------------------------------------------------
+  EC2Pub1:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4PubServers
+      - NetworkACLPub
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPub1
+      SecurityGroupIds:
+        - !GetAtt SecGroup4PubServers.GroupId
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2-pub-app
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          sudo apt update -y
+          #
+          #PHP...
+          sudo apt install php -y
+          #
+          #Apache...
+          sudo apt install apache2 -y
+          sudo sh -c "echo 'Apache ready in host $HOSTNAME...' > /var/www/html/index.html"
+          #... adding to boot and starting
+          sudo systemctl enable apache2
+          sudo systemctl start apache2
+          #
+          #Code Deploy Agent (installation specific Ubuntu 20.04)...
+          sudo apt-get install ruby wget -y
+          cd /home/ubuntu
+          wget https://aws-codedeploy-${AWS::Region}.s3.amazonaws.com/releases/codedeploy-agent_1.0-1.1597_all.deb
+          mkdir codedeploy-agent_1.0-1.1597_ubuntu20
+          dpkg-deb -R codedeploy-agent_1.0-1.1597_all.deb codedeploy-agent_1.0-1.1597_ubuntu20
+          sed 's/2.0/2.7/' -i ./codedeploy-agent_1.0-1.1597_ubuntu20/DEBIAN/control
+          dpkg-deb -b codedeploy-agent_1.0-1.1597_ubuntu20
+          sudo dpkg -i codedeploy-agent_1.0-1.1597_ubuntu20.deb
+          sudo sh -c "echo 'CodeDeploy Agent installed in host $HOSTNAME...' > /var/www/html/index.html"
+          #... adding to boot and starting
+          sudo systemctl start codedeploy-agent
+          sudo systemctl enable codedeploy-agent
+
+  EC2Pub2:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4PubServers
+      - NetworkACLPub
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPub2
+      SecurityGroupIds:
+        - !GetAtt SecGroup4PubServers.GroupId
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2-pub-app
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          sudo apt update -y
+          #
+          #PHP...
+          sudo apt install php -y
+          #
+          #Apache...
+          sudo apt install apache2 -y
+          sudo sh -c "echo 'Apache ready in host $HOSTNAME...' > /var/www/html/index.html"
+          #... adding to boot and starting
+          sudo systemctl enable apache2
+          sudo systemctl start apache2
+          #
+          #Code Deploy Agent (installation specific Ubuntu 20.04)...
+          sudo apt-get install ruby wget -y
+          cd /home/ubuntu
+          wget https://aws-codedeploy-${AWS::Region}.s3.amazonaws.com/releases/codedeploy-agent_1.0-1.1597_all.deb
+          mkdir codedeploy-agent_1.0-1.1597_ubuntu20
+          dpkg-deb -R codedeploy-agent_1.0-1.1597_all.deb codedeploy-agent_1.0-1.1597_ubuntu20
+          sed 's/2.0/2.7/' -i ./codedeploy-agent_1.0-1.1597_ubuntu20/DEBIAN/control
+          dpkg-deb -b codedeploy-agent_1.0-1.1597_ubuntu20
+          sudo dpkg -i codedeploy-agent_1.0-1.1597_ubuntu20.deb
+          sudo sh -c "echo 'CodeDeploy Agent installed in host $HOSTNAME...' > /var/www/html/index.html"
+          #... adding to boot and starting
+          sudo systemctl start codedeploy-agent
+          sudo systemctl enable codedeploy-agent
+
+  # Private instance for app --------------------------------------------------------
+  EC2Pvt1:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4PvtServers
+      - NetworkACLPvt
+      - NatInstance1EIP       # That depends on EC2NAT1
+      - RouteTablePvt1RouteA  # That depends on EC2NAT1
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPvt1
+      SecurityGroupIds:
+        - !GetAtt SecGroup4PvtServers.GroupId
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2-pvt-app
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          sudo apt update -y
+          #
+          #Tools for c++ rest service
+          sudo apt install g++ make -y
+          #
+          #Code Deploy Agent (installation specific Ubuntu 20.04)...
+          sudo apt-get install ruby wget -y
+          cd /home/ubuntu
+          wget https://aws-codedeploy-${AWS::Region}.s3.amazonaws.com/releases/codedeploy-agent_1.0-1.1597_all.deb
+          mkdir codedeploy-agent_1.0-1.1597_ubuntu20
+          dpkg-deb -R codedeploy-agent_1.0-1.1597_all.deb codedeploy-agent_1.0-1.1597_ubuntu20
+          sed 's/2.0/2.7/' -i ./codedeploy-agent_1.0-1.1597_ubuntu20/DEBIAN/control
+          dpkg-deb -b codedeploy-agent_1.0-1.1597_ubuntu20
+          sudo dpkg -i codedeploy-agent_1.0-1.1597_ubuntu20.deb
+          #... adding to boot and starting
+          sudo systemctl start codedeploy-agent
+          sudo systemctl enable codedeploy-agent
+
+  EC2Pvt2:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4PvtServers
+      - NetworkACLPvt
+      - NatInstance2EIP       # That depends on EC2NAT2
+      - RouteTablePvt2RouteA  # That depends on EC2NAT2
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPvt2
+      SecurityGroupIds:
+        - !GetAtt SecGroup4PvtServers.GroupId
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2-pvt-app
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          sudo apt update -y
+          #
+          #Tools for c++ rest service
+          sudo apt install g++ make -y
+          #
+          #Code Deploy Agent (installation specific Ubuntu 20.04)...
+          sudo apt-get install ruby wget -y
+          cd /home/ubuntu
+          wget https://aws-codedeploy-${AWS::Region}.s3.amazonaws.com/releases/codedeploy-agent_1.0-1.1597_all.deb
+          mkdir codedeploy-agent_1.0-1.1597_ubuntu20
+          dpkg-deb -R codedeploy-agent_1.0-1.1597_all.deb codedeploy-agent_1.0-1.1597_ubuntu20
+          sed 's/2.0/2.7/' -i ./codedeploy-agent_1.0-1.1597_ubuntu20/DEBIAN/control
+          dpkg-deb -b codedeploy-agent_1.0-1.1597_ubuntu20
+          sudo dpkg -i codedeploy-agent_1.0-1.1597_ubuntu20.deb
+          #... adding to boot and starting
+          sudo systemctl start codedeploy-agent
+          sudo systemctl enable codedeploy-agent
+
+  ###################################################################################
+  
+  # Load Balancers ##################################################################
+  # App ELB for frontend ------------------------------------------------------------
+  ELoadBalancerFrontend:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: 
+      - SecGroup4ELBFrontend
+      - SubnetPub1
+      - SubnetPub2
+    Properties: 
+      IpAddressType: ipv4
+      Name: !Sub ${EnvironmentName}-frntblncr
+      Scheme: internet-facing
+      SecurityGroups: 
+        - !Ref SecGroup4ELBFrontend
+      Subnets: 
+        - !Ref SubnetPub1
+        - !Ref SubnetPub2
+      Type: application
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-frntnd-ldblncr
+
+  ELoadBalancerFrontendListenerHTTP:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    DependsOn:
+      - ELoadBalancerFrontend
+      - ELoadBalancerFrontendTargetGroup
+    Properties:
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref ELoadBalancerFrontendTargetGroup
+                Weight: 1
+      LoadBalancerArn: !Ref ELoadBalancerFrontend
+      Port: 80
+      Protocol: HTTP
+  
+  ELoadBalancerFrontendTargetGroup:  
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn:
+     - VPC
+     - EC2Pub1
+     - EC2Pub2
+    Properties: 
+      Name: !Sub ${EnvironmentName}-frntblncr-tgrp
+      Port: 80
+      Protocol: HTTP
+      ProtocolVersion: HTTP1
+      TargetType: instance
+      Targets:
+        - Id: !Ref EC2Pub1
+          Port: 80
+        - Id: !Ref EC2Pub2
+          Port: 80
+      VpcId: !Ref VPC
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 5 #seconds between health checks
+      HealthCheckTimeoutSeconds: 4 #amount of seconds during which no response means a failed check
+      UnhealthyThresholdCount: 2 #number of consecutive checks failing before a healthy target becomes unhealthy
+      HealthyThresholdCount: 2 #number of consecutive checks succeeding before an unhealthy target becomes healthy
+      Tags: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-frntnd-ldblncr-tgtgrp
+
+  # App ELB for backend -------------------------------------------------------------
+  ELoadBalancerBackend:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: 
+      - SecGroup4ELBBackend
+      - SubnetPvt1
+      - SubnetPvt2
+    Properties: 
+      IpAddressType: ipv4
+      Name: !Sub ${EnvironmentName}-bckndblncr
+      Scheme: internal
+      SecurityGroups: 
+        - !Ref SecGroup4ELBBackend
+      Subnets: 
+        - !Ref SubnetPvt1
+        - !Ref SubnetPvt2
+      Type: application
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-bcknd-ldblncr
+
+  ELoadBalancerBackendListenerHTTP:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    DependsOn:
+      - ELoadBalancerBackend
+      - ELoadBalancerBackendTargetGroup
+    Properties:
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref ELoadBalancerBackendTargetGroup
+                Weight: 1
+      LoadBalancerArn: !Ref ELoadBalancerBackend
+      Port: 8080
+      Protocol: HTTP
+  
+  ELoadBalancerBackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn:
+     - VPC
+     - EC2Pvt1
+     - EC2Pvt2
+    Properties: 
+      Name: !Sub ${EnvironmentName}-bckndblncr-tgrp
+      Port: 8080
+      Protocol: HTTP
+      ProtocolVersion: HTTP1
+      TargetType: instance
+      Targets:
+        - Id: !Ref EC2Pvt1
+          Port: 8080
+        - Id: !Ref EC2Pvt2
+          Port: 8080
+      VpcId: !Ref VPC
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 5 #seconds between health checks
+      HealthCheckTimeoutSeconds: 4 #amount of seconds during which no response means a failed check
+      UnhealthyThresholdCount: 2 #number of consecutive checks failing before a healthy target becomes unhealthy
+      HealthyThresholdCount: 2 #number of consecutive checks succeeding before an unhealthy target becomes healthy
+      Tags: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-bcknd-ldblncr-tgtgrp
+
+  ###################################################################################
+
+  # CodeDeploy ######################################################################
+  # SNSTopic:  #1x1, NxN
+    # Type: AWS::SNS::Topic
+    # Properties: {}
+
+  # CodePipelineS3Bucket:
+    # Type: AWS::S3::Bucket
+    # Properties: 
+      # AccessControl: Private
+      # BucketName: !Sub ${EnvironmentName}-bucket-pipeline #It must be unique; auto-generated name ensures that
+      # Tags: 
+        # - Key: Name
+          # Value: !Sub ${EnvironmentName}-bucket-pipeline
+      # VersioningConfiguration: 
+        # Status: Enabled 
+
+  # CodePipelineRoleIAM:
+    # Type: 'AWS::IAM::Role'
+    # Properties:
+      # Description: CodePipeline role for !Sub ${EnvironmentName} front and back deploys
+      # RoleName: !Sub codepipeline-role-${EnvironmentName}
+      # ManagedPolicyArns: 
+        # - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSCodeDeployRole" ---- TODO!
+      # Tags:
+        # - Key: Name
+          # Value: !Sub ${EnvironmentName}-codepipeline-role
+
+  # CodePipelineFrontend:
+    # Type: AWS::CodePipeline::Pipeline
+    # DependsOn: CodePipelineS3Bucket
+    # Properties: 
+      # Name: !Sub ${EnvironmentName}-frntnd-pipeline
+      # ArtifactStore: 
+        # Type: S3
+        # Location: !Ref CodePipelineS3Bucket
+      # RestartExecutionOnUpdate: true
+      # RoleArn: !Ref CodePipelineServiceRole
+      # Stages:
+        # - Name: GithubSource
+          # Actions:
+            # - Name: SourceFromGit
+              # ActionTypeId:
+                # Category: Source #Source|Build|Test|Deploy|Invoke|Approval
+                # Owner: ThirdParty
+                # Version: 1
+                # Provider: GitHub
+              # OutputArtifacts: 
+                # - Name: GithubSourceOutput 
+              # RunOrder: 1 
+        # - Name: Deploy
+          # Actions:
+            # - Name: Deploy2EC2
+              # InputArtifacts: 
+                # - Name: GithubSourceOutput 
+              # ActionTypeId: 
+                # Category: Deploy 
+                # Owner: AWS
+                # Version: 1
+                # Provider: CodeDeploy
+              # Configuration:
+                # ApplicationName: !Ref CodeDeployFrontendApp
+                # DeploymentGroupName: !Ref CodeDeployFrontendDeplGroup
+              # RunOrder: 1
+        # - Name: Release
+          # Actions:
+            # - Name: ReleaseAction
+              # InputArtifacts:
+                # - Name: SourceOutput
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Version: 1
+                # Provider: CodeDeploy 
+              # Configuration: 
+                # ApplicationName: 
+                  # Ref: ApplicationName
+                # DeploymentGroupName: 
+                  # Ref: DeploymentGroupName 
+              # RunOrder: 1 
+      # Tags: 
+        # - Key: Name
+          # Value: !Sub ${EnvironmentName}-frntnd-pipeline
+
+  # CodeDeployRoleIAM:
+    # Type: 'AWS::IAM::Role'
+    # Properties:
+      # Description: !Sub Codedeploy role for ${EnvironmentName} front and back deploys
+      # RoleName: !Sub codedeploy-role-${EnvironmentName}
+      # AssumeRolePolicyDocument:
+        # Version: "2012-10-17"
+        # Statement:
+          # - Effect: "Allow"
+            # Principal:
+              # Service:
+                # - "codedeploy.amazonaws.com"
+            # Action:
+              # - "sts:AssumeRole"
+      # #Path: /service-role/
+      # ManagedPolicyArns: 
+        # - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSCodeDeployRole"
+      # Tags:
+        # - Key: Name
+          # Value: !Sub ${EnvironmentName}-codedeploy-role
+
+  # CodeDeployFrontendApp:
+    # Type: AWS::CodeDeploy::Application
+    # Properties: 
+      # ApplicationName: !Sub ${EnvironmentName}-frntnd-app
+      # ComputePlatform: Server
+
+  # CodeDeployFrontendDeplGroup:
+    # Type: AWS::CodeDeploy::DeploymentGroup
+    # DependsOn:
+      # - CodeDeployFrontendApp
+      # - CodeDeployRoleIAM
+      # - CodePipelineS3Bucket
+      # - EC2Pub1
+    # Properties: 
+      # ApplicationName: !Ref CodeDeployFrontendApp
+      # DeploymentConfigName: CodeDeployDefault.OneAtATime
+      # DeploymentGroupName: !Sub ${EnvironmentName}-frntnd-dplgrp
+      # DeploymentStyle: 
+        # DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        # DeploymentType: IN_PLACE
+      # ServiceRoleArn: !GetAtt CodeDeployRoleIAM.Arn
+      # Ec2TagFilters: 
+        # - Key: Name
+          # Value: !Sub ${EnvironmentName}-ec2-pub-app
+          # Type: KEY_AND_VALUE
+      # Deployment:
+        # Description: Deploy of webclient to instances
+        # Revision:
+          # RevisionType: S3
+          # S3Location:
+            # BundleType: zip
+            # Bucket: !Ref CodePipelineS3Bucket
+            # Key: webclient.zip
+      # #TriggerConfigurations:
+        # #- TriggerEvents:
+            # #- DeploymentSuccess
+            # #- DeploymentRollback
+          # #TriggerName: MyTarget
+          # #TriggerTargetArn: !Ref SNSTopic
+
+  ###################################################################################
+
+#----------------------------------------------------------------------
+#Output information for user after stack creation
+#----------------------------------------------------------------------
+Outputs:
+  EnvironmentType:
+    Description: Type of environment of stack
+    Value: !Ref EnvType
+
+  VPC:
+    Description: ID of the created VPC
+    Value: !Ref VPC
+
+  PublicEC2PubIP:
+    Description: Public IP for public app EC2
+    Value: !Join [ ", ", [ !GetAtt EC2Pub1.PublicIp, !GetAtt EC2Pub2.PublicIp ]]
+
+  PrivateEC2PvtIP:
+    Description: Private IP for private app EC2
+    Value: !Join [ ", ", [ !GetAtt EC2Pvt1.PrivateIp, !GetAtt EC2Pvt2.PrivateIp ]]
+
+  NATEC2PubIP:
+    Description: Public IP for public NAT EC2
+    Value: !Join [ ", ", [ !GetAtt EC2NAT1.PublicIp, !GetAtt EC2NAT1.PublicIp ]]
+
+  ELBFrontend:
+    Description: DNS of ELB Frontend
+    Value: !GetAtt ELoadBalancerFrontend.DNSName
+ 
+  ELBBackend:
+    Description: DNS of ELB Backend
+    Value: !GetAtt ELoadBalancerBackend.DNSName

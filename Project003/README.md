@@ -66,7 +66,7 @@ All diagrams included in documentation are Draw.io's editable PNGs.
   * creates 2 ELBs
     * listener HTTP at port 80 targeting public (webclient) instances
     * listener HTTP at port 8080 targeting private (serverapp) instances
-   <details><summary>corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details>
+<!--   <details><summary>corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details> -->
 <!--* File [appspec.yml](appspec.yml) and appspec_scripts folder:
   * TODO-->
 
@@ -74,7 +74,7 @@ All diagrams included in documentation are Draw.io's editable PNGs.
 
 ### Create AWS CloudFormation stack
 
-Create stack using cloudformation.yml. Parameters:
+Create stack using one of cloudformation\*.yml files. Parameters:
 * General Configuration
   * Environment Name: the name to be used for tagging resources created by stack
   * Environment Type: used to define a conditional when creating ports of NetworkACL and Security Groups
@@ -95,13 +95,13 @@ Create stack using cloudformation.yml. Parameters:
 
 ### Manually deploy apps
 
-1. Using SSH, connect to each public EC2 instance (the ones not configured for NAT):
+Using SSH, connect to each public EC2 instance (the ones not configured for NAT):
 * Copy webclient folder content to /var/www/html
 * Edit /var/www/html/config/aws-backend-url replacing
   * \<IP-or-DNS-serverapp\> by DNS from Backend ELB, found in CloudFormation's output as "DNS of ELB Backend"
   * \<port\> by 80
 
-1. Using SSH from inside one of public servers (jump-host), connect to each private EC2 instance:
+Using SSH from inside one of public servers (jump-host), connect to each private EC2 instance:
 * Copy serverapp folder content to /home/ubuntu (or any other location desired)
 * Add execution permission to '/home/ubuntu/dependencies/install_dependencies.sh' with command ```chmod +x install_dependencies.sh```
 * Run ```./dependencies/install_dependencies.sh```
@@ -110,8 +110,8 @@ Create stack using cloudformation.yml. Parameters:
 
 ### Open webclient page
 
-Open page using DNS address of Frontend Load Balancer
-   * found in CloudFormation's output as "DNS of ELB Frontend"
+Open page using DNS address of Frontend Load Balancer:
+   * DNS found in CloudFormation's output as "DNS of ELB Frontend"
 
 ## How to use
 
@@ -123,3 +123,4 @@ To refresh the page in the browser or to click the button in the page triggers t
 
 * Implement AWS CodePipeline within AWS CloudFormation stack (for that, instructions to manually deploy apps were provided).
 * Document serverapp (c++ api rest) with Swagger
+* Document CloudFormation stack (diagram still missing)

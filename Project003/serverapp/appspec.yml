@@ -1,0 +1,19 @@
+version: 0.0
+os: linux
+files:
+  - source: bin
+    destination: /home/ubuntu/serverapp
+  - source: dependencies
+    destination: /home/ubuntu/serverapp/dependencies
+hooks:
+  BeforeInstall:
+    - location: appspec/stop_service.sh
+      timeout: 300
+      runas: root
+  AfterInstall:
+    - location: appspec/install_prereqs.sh
+      timeout: 300
+      runas: root
+    - location: appspec/start_service.sh
+      timeout: 300
+      runas: root

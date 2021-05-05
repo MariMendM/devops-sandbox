@@ -1,0 +1,21 @@
+version: 0.2
+phases:
+  pre_build:
+    commands:
+      - echo Installing dependencies...
+      - chmod +x dependencies/install_dependencies.sh
+      - ls -l
+      - ./dependencies/install_dependencies.sh
+  build:
+    commands:
+      - echo Building started at `date`...
+      - make
+  post_build:
+    commands:
+      - echo Building finished at `date`...
+artifacts:
+  files:
+    - bin/**/*
+    - dependencies/**/*
+    - appspec/**/*
+    - appspec.yml

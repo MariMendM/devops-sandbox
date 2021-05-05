@@ -6,9 +6,8 @@ Description:
   - 3 route tables (1 for public, 1 for each private subnet);
   - 1 internet gateway (route in public route table);
   - 2 NACLs (1 for public, 1 for private traffic);
-  - 2 EC2 NAT instances (public, one for each private route table); NAT configurations executed;
-  - 2 EIPs for NAT ec2 instances;
-  - 1 security group for NAT ec2 instances;
+  - 2 NAT gateway (in pub subnets with route in private route tables);
+  - 2 EIP for NAT gateways;
   - 2 security groups for APP ec2 instances (1 to public, 1 to private);
   - 1 security group for ELB of public instances;
   - 1 security group for ELB of private instances;
@@ -105,7 +104,7 @@ Parameters:
     Default: serverapp
     AllowedPattern: ^\S+$
     ConstraintDescription: cannot have spaces neither be empty
-    
+
   VpcCIDR:
     Description: Enter the IP range (CIDR notation) for VPC
     Type: String
@@ -151,7 +150,6 @@ Parameters:
   KeyPairName:
     Description: Enter keypair name for EC2 instances
     Type: AWS::EC2::KeyPair::KeyName
-    AllowedPattern: .+
 
 #----------------------------------------------------------------------
 #Conditions for resource configuration
@@ -242,30 +240,48 @@ Resources:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
 
-  # NAT Instances EIP ---------------------------------------------------------------
-  NatInstance1EIP:
+  # NAT Gateways --------------------------------------------------------------------
+  NatGateway1EIP:
     Type: AWS::EC2::EIP
-    DependsOn:
-      - InternetGatewayAttachment
-      - EC2NAT1
+    DependsOn: InternetGatewayAttachment
     Properties:
       Domain: vpc
-      InstanceId: !Ref EC2NAT1
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-eip-nat1ec2
+          Value: !Sub ${EnvironmentName}-eip-nat1
 
-  NatInstance2EIP:
-    Type: AWS::EC2::EIP
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
     DependsOn:
-      - InternetGatewayAttachment
-      - EC2NAT2
+      - NatGateway1EIP
+      - SubnetPub1
     Properties:
-      Domain: vpc
-      InstanceId: !Ref EC2NAT2
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref SubnetPub1
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-eip-nat2ec2
+          Value: !Sub ${EnvironmentName}-nat1
+
+  NatGateway2EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-eip-nat2
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    DependsOn:
+      - NatGateway2EIP
+      - SubnetPub1
+    Properties:
+      AllocationId: !GetAtt NatGateway2EIP.AllocationId
+      SubnetId: !Ref SubnetPub1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-nat2
 
   # Public Route Table --------------------------------------------------------------
   RouteTablePub:
@@ -313,15 +329,15 @@ Resources:
         - Key: Name
           Value: !Sub ${EnvironmentName}-rtb-pvt1
 
-  RouteTablePvt1RouteA: #Internet traffic through EC2 NAT Instance 1
+  RouteTablePvt1RouteA: #Internet traffic through NAT Gateway 1
     Type: AWS::EC2::Route
     DependsOn:
       - RouteTablePvt1
-      - EC2NAT1
+      - NatGateway1
     Properties:
       RouteTableId: !Ref RouteTablePvt1
       DestinationCidrBlock: 0.0.0.0/0
-      InstanceId: !Ref EC2NAT1
+      NatGatewayId: !Ref NatGateway1
 
   RouteTablePvt1Association2SubnetPvt1:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -341,15 +357,15 @@ Resources:
         - Key: Name
           Value: !Sub ${EnvironmentName}-rtb-pvt2
 
-  RouteTablePvt2RouteA: #Internet traffic through EC2 NAT Instance 2
+  RouteTablePvt2RouteA: #Internet traffic through NAT Gateway 2
     Type: AWS::EC2::Route
     DependsOn:
       - RouteTablePvt2
-      - EC2NAT2
+      - NatGateway2
     Properties:
       RouteTableId: !Ref RouteTablePvt2
       DestinationCidrBlock: 0.0.0.0/0
-      InstanceId: !Ref EC2NAT2
+      NatGatewayId: !Ref NatGateway2
 
   RouteTablePvt2Association2SubnetPvt2:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -534,7 +550,7 @@ Resources:
     Properties: 
       NetworkAclId: !Ref NetworkACLPub
       SubnetId: !Ref SubnetPub2
-      
+
   # Private Network ACL -------------------------------------------------------------
   NetworkACLPvt:
     Type: AWS::EC2::NetworkAcl
@@ -630,74 +646,6 @@ Resources:
       NetworkAclId: !Ref NetworkACLPvt
       SubnetId: !Ref SubnetPvt2
 
-  # Security Group 4 NAT public servers ---------------------------------------------
-  SecGroup4NATServers:
-    Type: AWS::EC2::SecurityGroup
-    DependsOn: VPC
-    Properties:
-      GroupName: !Sub ${EnvironmentName}-nat-public-servers-sg
-      GroupDescription: "Security group for NAT public servers"
-      VpcId: !Ref VPC
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-sg-pubservers-nat
-
-  SecGroup4NATServersInboundHTTP4PvtSubnet1: #Allow requests from private servers to NAT instance
-    Type: AWS::EC2::SecurityGroupIngress
-    DependsOn: SecGroup4NATServers
-    Properties:
-      GroupId: !Ref SecGroup4NATServers
-      Description: "Inbound for HTTP"
-      IpProtocol: tcp
-      FromPort: 80
-      ToPort: 80
-      CidrIp: !Ref PrivateSubnet1CIDR
-
-  SecGroup4NATServersInboundHTTP4PvtSubnet2: #Allow requests from private servers to NAT instance
-    Type: AWS::EC2::SecurityGroupIngress
-    DependsOn: SecGroup4NATServers
-    Properties:
-      GroupId: !Ref SecGroup4NATServers
-      Description: "Inbound for HTTP"
-      IpProtocol: tcp
-      FromPort: 80
-      ToPort: 80
-      CidrIp: !Ref PrivateSubnet2CIDR
-
-  SecGroup4NATServersInboundHTTPS4PvtSubnet1: #Allow requests from private servers to NAT instance
-    Type: AWS::EC2::SecurityGroupIngress
-    DependsOn: SecGroup4NATServers
-    Properties:
-      GroupId: !Ref SecGroup4NATServers
-      Description: "Inbound for HTTPS"
-      IpProtocol: tcp
-      FromPort: 443
-      ToPort: 443
-      CidrIp: !Ref PrivateSubnet1CIDR
-
-  SecGroup4NATServersInboundHTTPS4PvtSubnet2: #Allow requests from private servers to NAT instance
-    Type: AWS::EC2::SecurityGroupIngress
-    DependsOn: SecGroup4NATServers
-    Properties:
-      GroupId: !Ref SecGroup4NATServers
-      Description: "Inbound for HTTPS"
-      IpProtocol: tcp
-      FromPort: 443
-      ToPort: 443
-      CidrIp: !Ref PrivateSubnet2CIDR
-
-  SecGroup4NATServersInboundSSH: #Allow external SSH requests to NAT instance; maintenance
-    Type: AWS::EC2::SecurityGroupIngress
-    DependsOn: SecGroup4NATServers
-    Condition: IsEnvMaintenance
-    Properties:
-      GroupId: !Ref SecGroup4NATServers
-      Description: "Inbound for SSH"
-      IpProtocol: tcp
-      FromPort: 22
-      ToPort: 22
-      CidrIp: !Ref Ip4ServerConnection
-
   # Security Group 4 app public servers ---------------------------------------------
   SecGroup4PubServers:
     Type: AWS::EC2::SecurityGroup
@@ -711,7 +659,7 @@ Resources:
           Value: !Sub ${EnvironmentName}-sg-pubservers-app
 
   SecGroup4PubServersInboundHTTP: #Allow external requests to internal webservers
-    Type: AWS::EC2::SecurityGroupIngress
+    Type: 'AWS::EC2::SecurityGroupIngress'
     DependsOn: SecGroup4PubServers
     Properties:
       GroupId: !Ref SecGroup4PubServers
@@ -722,7 +670,7 @@ Resources:
       CidrIp: 0.0.0.0/0
 
   SecGroup4PubServersInboundHTTPS: #Allow external requests to internal webservers
-    Type: AWS::EC2::SecurityGroupIngress
+    Type: 'AWS::EC2::SecurityGroupIngress'
     DependsOn: SecGroup4PubServers
     Properties:
       GroupId: !Ref SecGroup4PubServers
@@ -733,7 +681,7 @@ Resources:
       CidrIp: 0.0.0.0/0
 
   SecGroup4PubServersInboundSSH: #Allow external SSH requests to linux servers; maintenance
-    Type: AWS::EC2::SecurityGroupIngress
+    Type: 'AWS::EC2::SecurityGroupIngress'
     DependsOn: SecGroup4PubServers
     Condition: IsEnvMaintenance
     Properties:
@@ -745,7 +693,7 @@ Resources:
       CidrIp: !Ref Ip4ServerConnection
       
   SecGroup4PubServersInboundICMP: #Allow external pings to servers; maintenance
-    Type: AWS::EC2::SecurityGroupIngress
+    Type: 'AWS::EC2::SecurityGroupIngress'
     DependsOn: SecGroup4PubServers
     Condition: IsEnvMaintenance
     Properties:
@@ -769,7 +717,7 @@ Resources:
           Value: !Sub ${EnvironmentName}-sg-pvtservers-app
 
   SecGroup4PvtServersInboundAllInt: #Allow all internal traffic
-    Type: AWS::EC2::SecurityGroupIngress
+    Type: 'AWS::EC2::SecurityGroupIngress'
     DependsOn: SecGroup4PvtServers
     Properties:
       GroupId: !Ref SecGroup4PvtServers
@@ -790,7 +738,7 @@ Resources:
           Value: !Sub ${EnvironmentName}-sg-frontend-ldblncr
 
   SecGroup4ELBFrontendInbound80: #For listener 80
-    Type: AWS::EC2::SecurityGroupIngress
+    Type: 'AWS::EC2::SecurityGroupIngress'
     DependsOn: SecGroup4ELBFrontend
     Properties:
       GroupId: !Ref SecGroup4ELBFrontend
@@ -813,7 +761,7 @@ Resources:
           Value: !Sub ${EnvironmentName}-sg-frontend-ldblncr
 
   SecGroup4ELBBackendInbound8080: #For listener 8080
-    Type: AWS::EC2::SecurityGroupIngress
+    Type: 'AWS::EC2::SecurityGroupIngress'
     DependsOn: SecGroup4ELBBackend
     Properties:
       GroupId: !Ref SecGroup4ELBBackend
@@ -826,61 +774,6 @@ Resources:
   ###################################################################################
 
   # EC2 #############################################################################
-  # Public NAT instances ------------------------------------------------------------
-  EC2NAT1: #SubnetPvt1-SubnetPub1
-    Type: AWS::EC2::Instance
-    DependsOn:
-      - SecGroup4NATServers
-      - NetworkACLPub
-    Properties:
-      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
-      InstanceType: t2.micro
-      SubnetId: !Ref SubnetPub1
-      SecurityGroupIds:
-        - !GetAtt SecGroup4NATServers.GroupId
-      SourceDestCheck: false #Required for NAT instance, once it can not be source/destination of traffic
-      KeyName: !Ref KeyPairName
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-ec2-pub1-nat
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash -xe
-          sudo apt update -y
-          #
-          #Enabling IP Forward (not permanently)
-          sudo echo 1 > /proc/sys/net/ipv4/ip_forward
-          #
-          #NATting all packets to outside which are coming from VPC Network
-          sudo iptables -t nat -A POSTROUTING -o eth0 -s ${VpcCIDR} -j MASQUERADE
-
-  EC2NAT2: #SubnetPvt2-SubnetPub2
-    Type: AWS::EC2::Instance
-    DependsOn:
-      - SecGroup4NATServers
-      - NetworkACLPub
-    Properties:
-      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
-      InstanceType: t2.micro
-      SubnetId: !Ref SubnetPub1
-      SecurityGroupIds:
-        - !GetAtt SecGroup4NATServers.GroupId
-      SourceDestCheck: false #Required for NAT instance, once it can not be source/destination of traffic
-      KeyName: !Ref KeyPairName
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-ec2-pub2-nat
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash -xe
-          sudo apt update -y
-          #
-          #Enabling IP Forward (not permanently)
-          sudo echo 1 > /proc/sys/net/ipv4/ip_forward
-          #
-          #NATting all packets to outside which are coming from VPC Network
-          sudo iptables -t nat -A POSTROUTING -o eth0 -s ${VpcCIDR} -j MASQUERADE
-
   # IAM Profile for app instances ---------------------------------------------------
   IAMInstanceProfile4EC2:
     Type: AWS::IAM::InstanceProfile
@@ -986,9 +879,8 @@ Resources:
     DependsOn:
       - SecGroup4PvtServers
       - NetworkACLPvt
-      - NatInstance1EIP       # That depends on EC2NAT1
-      - RouteTablePvt1RouteA  # That depends on EC2NAT1
-      - IAMInstanceProfile4EC2
+      - NatGateway1             # That depends on NAT1
+      - RouteTablePvt1RouteA    # That depends on NAT1
     Properties:
       ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
       InstanceType: t2.micro
@@ -1026,9 +918,8 @@ Resources:
     DependsOn:
       - SecGroup4PvtServers
       - NetworkACLPvt
-      - NatInstance2EIP       # That depends on EC2NAT2
-      - RouteTablePvt2RouteA  # That depends on EC2NAT2
-      - IAMInstanceProfile4EC2
+      - NatGateway2            # That depends on NAT2
+      - RouteTablePvt2RouteA   # That depends on NAT2
     Properties:
       ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
       InstanceType: t2.micro
@@ -1505,10 +1396,6 @@ Outputs:
   PrivateEC2PvtIP:
     Description: Private IP for private app EC2
     Value: !Join [ ", ", [ !GetAtt EC2Pvt1.PrivateIp, !GetAtt EC2Pvt2.PrivateIp ]]
-
-  NATEC2PubIP:
-    Description: Public IP for public NAT EC2
-    Value: !Join [ ", ", [ !GetAtt EC2NAT1.PublicIp, !GetAtt EC2NAT1.PublicIp ]]
 
   ELBFrontend:
     Description: DNS of ELB Frontend

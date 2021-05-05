@@ -1,12 +1,24 @@
 # Project001
 
+## Content
+
+* [Demo description](#demo-description)
+* [Repo files overview](#repo-files-overview)
+* [Preparing Environment](#preparing-environment)
+  * [Create AWS CloudFormation stack](#create-aws-cloudformation-stack)
+  * [Finish Jenkins installation](#finish-jenkins-installation)
+  * [Configure Jenkins for integration to GitHub](#configure-jenkins-for-integration-to-github)
+  * [Configure Jenkins for integration to Docker/DockerHub](#configure-jenkins-for-integration-to-docker/dockerhub)
+  * [Configure Email Notifications ](#configure-email-notifications)
+  * [Configure Jenkins Pipeline](#configure-jenkins-pipeline)
+
 ## Demo description
 
 A Jenkins pipeline triggered by GitHub's webhook (at pushes) builds a Docker image to host a website (simply an index.html) using Apache. The image is also uploaded to DockerHub.
 
 If using AWS EC2 instance to run the demo, there is a CloudFormation file included to deploy everything necessary.
 
-All diagrams included in documentation are Draw.io's editable PNGs.
+```diff # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.```
 
 ## Repo files overview
 
@@ -16,7 +28,7 @@ All diagrams included in documentation are Draw.io's editable PNGs.
   * tests built image;
   * uploads image into DockerHub with tags 'latest' and Jenkins' build_number;
   * cleans local images
-   <details><summary>corresponding diagram</summary><img src="documents/jenkins-diagram.png"></details>
+  * <details><summary>see corresponding diagram</summary><img src="documents/jenkins-diagram.png"></details>
 * File [dockerfile](dockerfile):
   * built from image httpd;
   * copies website folder to Apache's standard folder;
@@ -27,16 +39,18 @@ All diagrams included in documentation are Draw.io's editable PNGs.
     * 1 route table (for public subnet);
     * 1 internet gateway (route in public route table);
     * 1 network NACL (for public traffic) <a name="firewallrules"></a>
-      * HTTP/HTTPS/SSH/Ephemeral for In/Outbound
-      * SMTP for Outbound
+      * HTTP/HTTPS/Ephemeral allowed for In/Outbound to CIDR 0.0.0.0/0
+      * SMTP allowed for Outbound to CIDR 0.0.0.0/0
+	  * SSH allowed for In/Outbound to CIDR provided for maintenance
       * \*\*\* If not using AWS stack for demo, remember to apply the above firewall rules
   * creates security group for instance
-    * HTTP/HTTPS/SSH/8080 for Inbound (8080 = Jenkins)
+    * HTTP/HTTPS/8080 allowed for Inbound to CIDR 0.0.0.0/0 (8080 for Jenkins)
+	* SSH allowed for Inbound to CIDR provided for maintenance
   * creates an EC2 instance
     * t2.micro;
     * ubuntu 20.04;
     * Jenkins and Docker installed by cloud init
-   <details><summary>corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details>
+  * <details><summary>see corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details>
 * File [jenkins-pipeline-config.xml](jenkins-pipeline-config.xml):
   * export of pipeline's configuration.
 
@@ -44,16 +58,23 @@ All diagrams included in documentation are Draw.io's editable PNGs.
 
 ### Create AWS CloudFormation stack
 
-1. Create stack using cloudformation.yml\*. Mandatory to have a key-pair already created before to run the stack
-   * EC2 instance will already have Docker and Jenkins installed
-1. Open jenkins (http:\\SERVER_IP:8080)
-   * SERVER_IP is outupt by cloudformation under "public ip for ec2"
-   * Jenkins URL is also output by cloudformation
+1. Create stack using cloudformation.yml\* file. Parameters:
+* General Configuration
+  * Environment Name: the name to be used for tagging resources created by stack
+* Network Configuration
+  * VPC IP range: CIDR block for VPC created by stack (cannot be already in use)
+  * Public Subnet VPC IP range: CIDR block for public subnet; must be in accordance to VPC's CIDR block
+* EC2 Configuration
+  * KeyPair for EC2 instances: select an already existent key-pair
+  * Ip4ServerConnection: IP or CIDR block from machines that can SSH EC2 public\* instances
 
 \* If not using AWS stack for demo, do not forget firewall rules as described in [CloudFormation description](#firewallrules)
 
 ### Finish Jenkins installation
 
+1. Open jenkins
+   * Jenkins URL is output by CloudFormation under "URL of Jenkins installed in EC2"
+   * IP of server can be retrieved from URL
 1. Connect to server by SSH to acquire unlock password
    * sudo cat /var/lib/jenkins/secrets/initialAdminPassword (or folder indicated on Jenkins' welcome screen)
 1. Install plugins

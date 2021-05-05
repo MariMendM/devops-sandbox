@@ -26,9 +26,7 @@ Once private instances need communication to the internet at some point, NAT tra
 
 __\*\*\*__ It can be run free of charges inside AWS free tier period, if account creating stack has not yet reached limits of free tier for resources provided by this stack.
 
-```diff
-# Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.
-```
+```diff # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.```
 
 ## Repo files overview
 
@@ -50,9 +48,14 @@ __\*\*\*__ It can be run free of charges inside AWS free tier period, if account
     * 3 route tables (1 for public, 1 for each private subnet);
     * 1 internet gateway (route in public route table);
     * 2 EIPs for NAT ec2 instances;
-    * 2 network NACL (1 for public, 1 for private traffic)
-      * HTTP/HTTPS/Ephemeral allowed for In/Outbound to CIDR 0.0.0.0/0
-	  * SSH/ICMP allowed for In/Outbound to CIDR provided for maintenance
+    * 2 network NACL
+      * 1 for public traffic
+        * HTTP/HTTPS/Ephemeral allowed for In/Outbound to CIDR 0.0.0.0/0
+	    * SSH/ICMP allowed for In/Outbound to CIDR provided for maintenance
+	  * 1 for private traffic
+	    * Full inside traffic allowed for In/Outbound to CIDR VPC (x.x.x.x/16)
+		* HTTP/HTTPS allowed for Outbound to CIDR 0.0.0.0/0
+		* Ephemeral allowed for Inbound to CIDR 0.0.0.0/0
   * creates Security Groups
     * 1 for public instances hosting webclient
       * HTTP/HTTPS allowed for Inbound to CIDR 0.0.0.0/0
@@ -123,7 +126,7 @@ Using SSH, connect to each public EC2 instance (the ones not configured for NAT)
 * Copy webclient folder content to /var/www/html
 * Edit /var/www/html/config/aws-backend-url replacing
   * \<IP-or-DNS-serverapp\> by DNS from Backend ELB, found in CloudFormation's output as "DNS of ELB Backend"
-  * \<port\> by 80
+  * \<port\> by 8080
 
 ### Open webclient page
 

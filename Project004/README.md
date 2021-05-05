@@ -1,10 +1,18 @@
 # Project004
 
+## Content
+
+* [Demo description](#demo-description)
+* [Repo files overview](#repo-files-overview)
+* [Preparing Environment](#preparing-environment)
+  * [Create AWS CloudFormation stack](#create-aws-cloudformation-stack)
+  * [Configuring Docker Swarm](#configuring-docker-swarm)
+
 ## Demo description
 
 A CloudFormation stack configuration to work with Docker Swarm.
 
-All diagrams included in documentation are Draw.io's editable PNGs.
+```diff # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.```
 
 ## Repo files overview
 
@@ -29,14 +37,25 @@ All diagrams included in documentation are Draw.io's editable PNGs.
     * t2.micro;
     * ubuntu 20.04;
     * Docker and Docker-Compose installed by cloud init
-   <details><summary>corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details>
+  * <details><summary>see corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details>
 
 ## Preparing environment
 
 ### Create AWS CloudFormation stack
 
-Create stack using cloudformation.yml
-   * EC2 instances will already have Docker and Docker-Compose installed
+* General Configuration
+  * Environment Name: the name to be used for tagging resources created by stack
+  * Environment Type: used to define a conditional when creating ports of NetworkACL and Security Groups
+    * MAINTENANCE opens ports such as SSH and Ephemeral (for connections to the hosts and execution of APT, for example)
+    * PROD disables these same ports
+    * The idea is to always run the creation of the stack using MAINTENANCE, updating after to PROD (and alternate between both as necessary)
+    * For this demo, keep it as MAINTENANCE
+* Network Configuration
+  * VPC IP range: CIDR block for VPC created by stack (cannot be already in use)
+  * Public SubnetX VPC IP range: CIDR block for public subnet; must be in accordance to VPC's CIDR block; they cannot conflict with CIDR block from each other
+* EC2 Configuration
+  * KeyPair for EC2 instances: select an already existent key-pair
+  * Ip4ServerConnection: IP or CIDR block from machines that can SSH EC2 public instances
 
 ### Configuring Docker Swarm
 

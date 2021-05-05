@@ -26,7 +26,9 @@ Once private instances need communication to the internet at some point, NAT tra
 
 __\*\*\*__ It can be run free of charges inside AWS free tier period, if account creating stack has not yet reached limits of free tier for resources provided by this stack.
 
-```diff # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.```
+```diff
+# Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.
+```
 
 ## Repo files overview
 

@@ -12,7 +12,9 @@
 
 A CloudFormation stack configuration to work with Docker Swarm.
 
-```diff # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.```
+```diff
+# Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.
+```
 
 ## Repo files overview
 
@@ -43,6 +45,7 @@ A CloudFormation stack configuration to work with Docker Swarm.
 
 ### Create AWS CloudFormation stack
 
+Create stack using one of cloudformation.yml files. Parameters:
 * General Configuration
   * Environment Name: the name to be used for tagging resources created by stack
   * Environment Type: used to define a conditional when creating ports of NetworkACL and Security Groups

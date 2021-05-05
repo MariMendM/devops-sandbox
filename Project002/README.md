@@ -12,7 +12,9 @@
 
 Demonstrate Ansible's playbook with simple tasks.
 
-```diff # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.```
+```diff
+# Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.
+```
 
 ## Repo files overview
 
@@ -38,7 +40,7 @@ Demonstrate Ansible's playbook with simple tasks.
 
 ### Create AWS CloudFormation stack
 
-Create stack using cloudformation.yml\* file. Parameters:
+Create stack using cloudformation.yml file. Parameters:
 * General Configuration
   * Environment Name: the name to be used for tagging resources created by stack
 * Network Configuration

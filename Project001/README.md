@@ -18,7 +18,9 @@ A Jenkins pipeline triggered by GitHub's webhook (at pushes) builds a Docker ima
 
 If using AWS EC2 instance to run the demo, there is a CloudFormation file included to deploy everything necessary.
 
-```diff # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.```
+```diff
+# Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.
+```
 
 ## Repo files overview
 
@@ -58,7 +60,7 @@ If using AWS EC2 instance to run the demo, there is a CloudFormation file includ
 
 ### Create AWS CloudFormation stack
 
-1. Create stack using cloudformation.yml\* file. Parameters:
+Create stack using cloudformation.yml\* file. Parameters:
 * General Configuration
   * Environment Name: the name to be used for tagging resources created by stack
 * Network Configuration

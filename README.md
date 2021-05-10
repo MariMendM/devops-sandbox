@@ -14,7 +14,7 @@ Sandbox for demos of tools usually involved in DevOps loop.
     <img src="Project001/documents/jenkins-diagram.png">
   </details>
 
-**Tools and technologies:** Jenkins; GitHub; Docker; DockerHub; AWS CloufFormation with VPC (Subnet/RTables/NACL/SecGroup/IGateway) and EC2 (instances); YAML
+**Tools and technologies:** Jenkins :black_small_square: GitHub :black_small_square: Docker :black_small_square: DockerHub :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML
 
 ---
 
@@ -23,12 +23,9 @@ Sandbox for demos of tools usually involved in DevOps loop.
 
 **Purpose:** Demonstrate Ansible's playbook with simple tasks (documentation [here](Project002/README.md)).
 
-  <details>
-    <summary>Details</summary>
-    <img src="Project002/documents/to-do.png">
-  </details>
+<details><summary>Details</summary><img src="Project002/documents/to-do.png"></details>
 
-**Tools and technologies:** Ansible; AWS CloufFormation with VPC (Subnet/RTables/NACL/SecGroup/IGateway) and EC2 (instances); YAML
+**Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML
 
 ---
 
@@ -37,12 +34,12 @@ Sandbox for demos of tools usually involved in DevOps loop.
 
 **Purpose:** Demonstrate AWS CloudFormation stack creation including NAT (instances and gateways, two stacks provided), Load Balancers and AWS CodePipeline (CodeCommit + CodeBuild + CodeDeploy). The final result shows a webpage and a rest c++ api deployed in order to exercise balancers from front/backend servers (documentation [here](Project003/README.md)).
 
-  <details><summary>CloudFormation diagram</summary><img src="Project003/documents/cloudformation-diagram.png"></details>
-  <details><summary>CodePipeline diagram</summary><img src="Project003/documents/codepipeline-diagram.png"></details>
-  <details><summary>Rest C++ API diagram</summary><img src="Project003/serverapp/documents/restapi-logic-diagram.png"></details>
-  <details><summary>WebPage diagram</summary><img src="Project003/webclient/documents/modules-organization-diagram.png"></details>
+<details><summary>CloudFormation diagram (pending)</summary><img src="Project003/documents/cloudformation-diagram.png"></details>
+<details><summary>CodePipeline diagram</summary><img src="Project003/documents/codepipeline-diagram.png"></details>
+<details><summary>Rest C++ API diagram</summary><img src="Project003/serverapp/documents/restapi-logic-diagram.png"></details>
+<details><summary>WebPage diagram</summary><img src="Project003/webclient/documents/modules-organization-diagram.png"></details>
 
-**Tools and technologies:** AWS CloufFormation with VPC (Subnet/RTables/NACL/SecGroup/IGateway/NATGateway/NATinstances/EIP), EC2 (Instances/ELB), CodePipeline (CodeCommit/CodeBuild/CodeDeploy) and IAM (Roles/InstanceProfiles); C++; HTML; PHP; JSON; YAML
+**Tools and technologies:** AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway, NATGateway/NATinstances, EIP), EC2 (Instances, application ELB), CodePipeline (CodeCommit, CodeBuild, CodeDeploy), IAM (Roles, InstanceProfiles) and Systems Manager (Param Store) :black_small_square: C++ :black_small_square: HTML :black_small_square: PHP :black_small_square: JSON :black_small_square: YAML
 
 ---
 
@@ -51,9 +48,6 @@ Sandbox for demos of tools usually involved in DevOps loop.
 
 **Purpose:** Demonstrate AWS CloudFormation stack creation to work with Docker Swarm (documentation [here](Project004/README.md)).
 
-  <details>
-    <summary>CloudFormation diagram</summary>
-    <img src="Project004/documents/cloudformation-diagram.png">
-  </details>
+<details><summary>CloudFormation diagram</summary><img src="Project004/documents/cloudformation-diagram.png"></details>
 
-**Tools and technologies:** Docker Swarm; Docker-Compose; AWS CloufFormation with VPC (Subnet/RTables/NACL/SecGroup/IGateway) and EC2; YAML
+**Tools and technologies:** Docker Swarm :black_small_square: Docker-Compose :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML

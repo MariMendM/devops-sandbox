@@ -39,7 +39,7 @@ __\*\*\*__ It can be run free of charges inside AWS free tier period, if account
     * YAML file and scripts for CodeDeploy implemented by CloudFormation files
   * remaining content
     * Web page source code (documentation [here](webclient/README.md))
-  * <details><summary>see corresponding diagram</summary><img src="webclient/documents/modules-organization-diagram.png"></details>
+    * <details><summary>see corresponding diagram</summary><img src="webclient/documents/modules-organization-diagram.png"></details>
 * Folder **serverapp**:
   * simple REST API developed in C++ to return json responses, with focus for this demo on the HTTP GET method for path /ec2/instance-id
   * buildspec.yml
@@ -105,7 +105,8 @@ __\*\*\*__ It can be run free of charges inside AWS free tier period, if account
     * 1 CodePipeline
       * steps for webclient: source from CodeCommit, and deploy with CodeDeploy
       * steps for serverapp: source from CodeCommit, build with CodeBuild, and deploy with CodeDeploy
-  <!--* <details><summary>see corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details> -->
+	  * <details><summary>see corresponding CodePipeline diagram</summary><img src="documents/codepipeline-diagram.png"></details>
+  <!--* <details><summary>see corresponding CloudFormation diagram</summary><img src="documents/cloudformation-diagram.png"></details> -->
 
 ## Preparing environment
 
@@ -137,11 +138,11 @@ Create stack using one of cloudformation\*.yml files. Parameters:
   * CodeCommit repository for backend code: input the name of CodeCommit repository created for serverapp in previous section
   * CodeCommit branch name for backend repo: input the name of the branch to be used in serverapp repo created<sup>2</sup>
 
-NOTE 1) To SSH private instances via jump host:
+:one: To SSH private instances via jump host:
 * Enable SSH Agent Forwarding in SSH client in use
 * Connect to one of public instances using SSH and from inside it, then SSH private instance desired
 
-NOTE 2) Git normally uses "master" while CodeCommit uses "main"; check the branch names available into AWS CodeCommit console for each repository.
+:two: Git normally uses "master" while CodeCommit uses "main"; check the branch names available into AWS CodeCommit console for each repository.
 
 ### Open demo
 

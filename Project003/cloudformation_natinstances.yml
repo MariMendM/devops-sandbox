@@ -1,21 +1,24 @@
 #----------------------------------------------------------------------
 Description:
-  Contains
-  - 1 VPC;
-  - 4 subnets (2 public, 2 private);
-  - 3 route tables (1 for public, 1 for each private subnet);
-  - 1 internet gateway (route in public route table);
-  - 2 NACLs (1 for public, 1 for private traffic);
-  - 2 EC2 NAT instances (public, one for each private route table); NAT configurations executed;
-  - 2 EIPs for NAT ec2 instances;
-  - 1 security group for NAT ec2 instances;
-  - 2 security groups for APP ec2 instances (1 to public, 1 to private);
-  - 1 security group for ELB of public instances;
-  - 1 security group for ELB of private instances;
-  - 4 EC2 APP instances (2 public, 2 private); CodeDeployAgent and prereqs of front/back apps installed;
-  - 2 application ELBs (1 for public, 1 for private instances), TargetGroups/Listeners included;
-  - 1 CodePipeline for serverapp (with S3 bucket + CodeBuild and role + CodeDeploy and roles to CodeDeploy itself and EC2)
-  By default VPC also deploys 1 NetworkACL and 1 SecurityGroup not reachable for changes by CloudFormation
+ Contains
+ - 1 VPC;
+ - 4 subnets (2 public, 2 private);
+ - 3 route tables (1 for pub, 1 for each pvt subnet);
+ - 1 internet gateway (route in pub route table);
+ - 2 NACLs (1 for pub, 1 for pvt traffic);
+ - 2 EC2 NAT instances (pub, one for each pvt route table); NAT configs executed;
+ - 2 EIPs for NAT ec2 instances;
+ - 1 security group for NAT ec2;
+ - 2 security groups for APP ec2 (1 for pub, 1 for pvt);
+ - 1 security group for ELB of pub ec2;
+ - 1 security group for ELB of pvt ec2;
+ - 4 EC2 APP instances (2 pub, 2 pvt); CodeDeployAgent and/or CLI + prereqs of front/back apps installed;
+ - 2 application ELBs (1 for pub, 1 for pvt ec2) + TargetGroups/Listeners;
+ - 1 IAM instance profile (for EC2 APP instances);
+ - 4 IAM roles (CodeBuild, CodeDeploy, CodePipeline, instance profile);
+ - 1 Systems Manager Parameter (backend url to use in frontend);
+ - 1 CodePipeline for both apps (S3 bucket + CodeBuild + 2 CodeDeploys);
+ By default VPC deploys 1 NACL and 1 SecGroup not reachable for changes by CloudFormation
 
 #----------------------------------------------------------------------
 #Metadata to define presentation of input parameters (AWS console interface)
@@ -46,7 +49,9 @@ Metadata:
           default: "Repository Configuration"
         Parameters:
           - CodeCommitFrontendRepository
+          - CodeCommitFrontendBranch
           - CodeCommitBackendRepository
+          - CodeCommitBackendBranch
     ParameterLabels:
       EnvironmentName:
         default: Environment Name
@@ -70,6 +75,10 @@ Metadata:
         default: CodeCommit repository for frontend code
       CodeCommitBckendRepository:
         default: CodeCommit repository for backend code
+      CodeCommitFrontendBranch:
+        default: CodeCommit branch name for frontend repo
+      CodeCommitBackendBranch:
+        default: CodeCommit branch name for backend repo
 
 #----------------------------------------------------------------------
 #Input parameters (information from user)
@@ -99,13 +108,27 @@ Parameters:
     AllowedPattern: ^\S+$
     ConstraintDescription: cannot have spaces neither be empty
 
+  CodeCommitFrontendBranch:
+    Description: Type the name of the branch to be used for webclient repo
+    Type: String
+    Default: main
+    AllowedPattern: ^\S+$
+    ConstraintDescription: cannot have spaces neither be empty
+
   CodeCommitBackendRepository:
     Description: Type the name of CodeCommit Repository for serverapp (backend)
     Type: String
     Default: serverapp
     AllowedPattern: ^\S+$
     ConstraintDescription: cannot have spaces neither be empty
-    
+
+  CodeCommitBackendBranch:
+    Description: Type the name of the branch to be used for serverapp repo
+    Type: String
+    Default: main
+    AllowedPattern: ^\S+$
+    ConstraintDescription: cannot have spaces neither be empty
+
   VpcCIDR:
     Description: Enter the IP range (CIDR notation) for VPC
     Type: String
@@ -884,12 +907,12 @@ Resources:
   # IAM Profile for app instances ---------------------------------------------------
   IAMInstanceProfile4EC2:
     Type: AWS::IAM::InstanceProfile
-    DependsOn: RoleIAM4CodeDeployAtEC2
+    DependsOn: RoleIAM4CodeDeploySysMngrAtEC2
     Properties:
       InstanceProfileName: !Sub ${EnvironmentName}-instance-profile
       Path: /
       Roles:
-         - !Ref RoleIAM4CodeDeployAtEC2
+         - !Ref RoleIAM4CodeDeploySysMngrAtEC2
 
   # Public instance for app ---------------------------------------------------------
   EC2Pub1:
@@ -903,6 +926,7 @@ Resources:
       SubnetId: !Ref SubnetPub1
       SecurityGroupIds:
         - !GetAtt SecGroup4PubServers.GroupId
+      IamInstanceProfile: !Ref IAMInstanceProfile4EC2
       KeyName: !Ref KeyPairName
       Tags:
         - Key: Name
@@ -935,6 +959,12 @@ Resources:
           #... adding to boot and starting
           sudo systemctl start codedeploy-agent
           sudo systemctl enable codedeploy-agent
+          #
+          #AWS CLI...
+          sudo apt install awscli -y
+          #... exporting region into CLI's environment variable AWS_DEFAULT_REGION
+          sudo sh -c "echo 'export AWS_DEFAULT_REGION=${AWS::Region}' > /etc/profile.d/awscli_envvars.sh"
+          sudo sh -c "echo 'export PARAM_NAME=${EnvironmentName}-backend-url' >> /etc/profile.d/awscli_envvars.sh"
 
   EC2Pub2:
     Type: AWS::EC2::Instance
@@ -947,6 +977,7 @@ Resources:
       SubnetId: !Ref SubnetPub2
       SecurityGroupIds:
         - !GetAtt SecGroup4PubServers.GroupId
+      IamInstanceProfile: !Ref IAMInstanceProfile4EC2
       KeyName: !Ref KeyPairName
       Tags:
         - Key: Name
@@ -979,6 +1010,12 @@ Resources:
           #... adding to boot and starting
           sudo systemctl start codedeploy-agent
           sudo systemctl enable codedeploy-agent
+          #
+          #AWS CLI...
+          sudo apt install awscli -y
+          #... exporting region into CLI's environment variable AWS_DEFAULT_REGION
+          sudo sh -c "echo 'export AWS_DEFAULT_REGION=${AWS::Region}' > /etc/profile.d/awscli_envvars.sh"
+          sudo sh -c "echo 'export PARAM_NAME=${EnvironmentName}-backend-url' >> /etc/profile.d/awscli_envvars.sh"
 
   # Private instance for app --------------------------------------------------------
   EC2Pvt1:
@@ -1060,7 +1097,6 @@ Resources:
           #... adding to boot and starting
           sudo systemctl start codedeploy-agent
           sudo systemctl enable codedeploy-agent
-
   ###################################################################################
   
   # Load Balancers ##################################################################
@@ -1191,17 +1227,30 @@ Resources:
       Tags: 
         - Key: Name
           Value: !Sub ${EnvironmentName}-bcknd-ldblncr-tgtgrp
-
   ###################################################################################
 
-  # CodePipeline ####################################################################
-  # Common resources ----------------------------------------------------------------
-  RoleIAM4CodeDeployAtEC2:
+  # CI/CD Pipeline ##################################################################
+  # Systems Manager Parameter for webclient's config file ---------------------------
+  SSMParam4BackendURLConfig:
+    Type: AWS::SSM::Parameter
+    DependsOn: ELoadBalancerBackend
+    Properties: 
+      DataType: text
+      Description: !Sub DNS of Backend ELB for ${EnvironmentName}
+      Name: !Sub ${EnvironmentName}-backend-url #Always exactly same name configured inside EC2PubX's CloudInit
+      Tier: Standard
+      Type: String
+      Value: !Sub http://${ELoadBalancerBackend.DNSName}:8080/api/ec2/instance-id
+
+  # Resources shared by CI/CD services ----------------------------------------------
+  RoleIAM4CodeDeploySysMngrAtEC2:
     Type: AWS::IAM::Role
-    DependsOn: S3Bucket4Artifacts
+    DependsOn:
+      - S3Bucket4Artifacts
+      - SSMParam4BackendURLConfig
     Properties:
-      Description: !Sub EC2 role for ${EnvironmentName} allowing work from CodeDeploy
-      RoleName: !Sub ${EnvironmentName}-ec2-codedeploy-role
+      Description: !Sub Allows EC2 instances from ${EnvironmentName} to call CodeDeploy and CLI SSM
+      RoleName: !Sub ${EnvironmentName}-ec2-codedeploy-ssm-role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -1213,7 +1262,7 @@ Resources:
               - "sts:AssumeRole"
       Path: /
       Policies:
-        - PolicyName: !Sub ${EnvironmentName}-ec2-codedeploy-policy
+        - PolicyName: !Sub ${EnvironmentName}-ec2-codedeploy-ssm-policy
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -1224,9 +1273,20 @@ Resources:
                 Action:
                   - "s3:Get*"
                   - "s3:List*"
+              - Effect: Allow
+                Resource:
+                  - !Sub arn:aws:ssm:us-east-1:767044525123:parameter/${SSMParam4BackendURLConfig}
+                Action:
+                  - "ssm:GetParameter"
+                  - "ssm:DescribeParameters"
+              - Effect: Allow
+                Resource:
+                  - "*"
+                Action:
+                  - "ec2:DescribeAvailabilityZones"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-ec2-codedeploy-role
+          Value: !Sub ${EnvironmentName}-ec2-codedeploy-smm-role
 
   RoleIAM4CodeDeploy:
     Type: AWS::IAM::Role
@@ -1277,8 +1337,8 @@ Resources:
                   - "codecommit:GitPull"
               - Effect: Allow
                 Resource:
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${EnvironmentName}-backnd-cbld
-                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${EnvironmentName}-backnd-cbld:*
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${EnvironmentName}-bcknd-cbld
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${EnvironmentName}-bcknd-cbld:*
                 Action:
                   - "logs:CreateLogGroup"
                   - "logs:CreateLogStream"
@@ -1296,11 +1356,15 @@ Resources:
                   - "s3:GetBucketLocation"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-codedeploy-role
+          Value: !Sub ${EnvironmentName}-codebuild-role
 
   RoleIAM4CodePipeline:
     Type: AWS::IAM::Role
-    DependsOn: S3Bucket4Artifacts
+    DependsOn:
+      - S3Bucket4Artifacts
+      - CodeBuildBackendApp
+      - CodeDeployBackendApp
+      - CodeDeployFrontendApp
     Properties:
       Description: !Sub CodePipeline role for ${EnvironmentName} front and back deploys
       RoleName: !Sub ${EnvironmentName}-codepipeline-role
@@ -1333,6 +1397,7 @@ Resources:
               - Effect: Allow
                 Resource:
                   - !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${CodeCommitBackendRepository}
+                  - !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${CodeCommitFrontendRepository}
                 Action:
                   - "codecommit:Get*"
                   - "codecommit:GitPull"
@@ -1340,15 +1405,17 @@ Resources:
                   - "codecommit:CancelUploadArchive"
               - Effect: Allow
                 Resource:
-                  - !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${EnvironmentName}-backnd-cbld
-                  - !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/${EnvironmentName}-backnd-cbld:*
+                  - !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${CodeBuildBackendApp}
+                  - !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/${CodeBuildBackendApp}:*
                 Action:
                   - "codebuild:StartBuild"
                   - "codebuild:BatchGetBuilds"
               - Effect: Allow
                 Resource:
-                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:application:${EnvironmentName}-backnd-cdpl
-                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:deploymentgroup:${EnvironmentName}-backnd-cdpl/${EnvironmentName}-bcknd-cdplgrp
+                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:application:${CodeDeployBackendApp}
+                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:deploymentgroup:${CodeDeployBackendApp}/${CodeDeployBackendDeplGroup}
+                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:application:${CodeDeployFrontendApp}
+                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:deploymentgroup:${CodeDeployFrontendApp}/${CodeDeployFrontendDeplGroup}
                   - !Sub arn:aws:codedeploy:us-east-1:767044525123:deploymentconfig:*
                 Action:
                   - "codedeploy:GetApplication"
@@ -1365,18 +1432,20 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       AccessControl: Private
-      BucketName: !Sub ${EnvironmentName}-bucket-bcknd-pipeline #Comment for auto-generated name
+      BucketName: !Sub ${EnvironmentName}-bucket-artifacts #Comment for auto-generated name
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-bucket-bcknd-pipeline
+          Value: !Sub ${EnvironmentName}-bucket-artifacts
 
-  # Frontend Pipeline (webclient) ---------------------------------------------------
-  # TODO!
-  # Backend Pipeline (serverapp) ----------------------------------------------------
-  CodePipelineBackend:
+  # CodePipeline for apps (webclient and serverapp) ---------------------------------
+  CodePipelineFrontendBackend:
     Type: AWS::CodePipeline::Pipeline
     DependsOn:
+      - RoleIAM4CodePipeline
       - S3Bucket4Artifacts
+      - CodeDeployFrontendApp
+      - EC2Pub1
+      - EC2Pub2
       - CodeBuildBackendApp
       - CodeDeployBackendApp
       - EC2Pvt1
@@ -1394,22 +1463,33 @@ Resources:
       Stages:
         - Name: SourceStage
           Actions:
-            - Name: SourceCodeCommit
+            - Name: FrontendSourceCodeCommit
               ActionTypeId:
                 Category: Source
                 Owner: AWS
                 Provider: CodeCommit
                 Version: 1
               Configuration:
-                RepositoryName: !Sub ${CodeCommitBackendRepository}
-                BranchName: main
+                RepositoryName: !Ref CodeCommitFrontendRepository
+                BranchName: !Ref CodeCommitFrontendBranch
               OutputArtifacts: 
-                - Name: SourceCodeCommitArtifacts
+                - Name: FrontendSourceCodeCommitArtifacts
+            - Name: BackendSourceCodeCommit
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: 1
+              Configuration:
+                RepositoryName: !Ref CodeCommitBackendRepository
+                BranchName: !Ref CodeCommitBackendBranch
+              OutputArtifacts: 
+                - Name: BackendSourceCodeCommitArtifacts
         - Name: BuildStage
           Actions:
-            - Name: BuildSource
+            - Name: BackendBuild
               InputArtifacts: 
-                - Name: SourceCodeCommitArtifacts 
+                - Name: BackendSourceCodeCommitArtifacts 
               ActionTypeId: 
                 Category: Build 
                 Owner: AWS
@@ -1418,12 +1498,23 @@ Resources:
               Configuration:
                 ProjectName: !Ref CodeBuildBackendApp
               OutputArtifacts: 
-                - Name: CodeBuildArtifacts
+                - Name: BackendCodeBuildArtifacts
         - Name: DeployStage
           Actions:
-            - Name: DeployBuild
+            - Name: FrontendDeploy
               InputArtifacts: 
-                - Name: CodeBuildArtifacts 
+                - Name: FrontendSourceCodeCommitArtifacts 
+              ActionTypeId: 
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: 1
+              Configuration:
+                ApplicationName: !Ref CodeDeployFrontendApp
+                DeploymentGroupName: !Ref CodeDeployFrontendDeplGroup
+            - Name: BackendDeploy
+              InputArtifacts: 
+                - Name: BackendCodeBuildArtifacts 
               ActionTypeId: 
                 Category: Deploy
                 Owner: AWS
@@ -1433,18 +1524,46 @@ Resources:
                 ApplicationName: !Ref CodeDeployBackendApp
                 DeploymentGroupName: !Ref CodeDeployBackendDeplGroup
 
+  # CodeDeploy for frontend app (webclient) -----------------------------------------
+  CodeDeployFrontendApp:
+    Type: AWS::CodeDeploy::Application
+    Properties: 
+      ApplicationName: !Sub ${EnvironmentName}-frntnd-cdpl
+      ComputePlatform: Server
+
+  CodeDeployFrontendDeplGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn:
+      - CodeDeployFrontendApp
+      - RoleIAM4CodeDeploy
+      - SSMParam4BackendURLConfig
+    Properties: 
+      ApplicationName: !Ref CodeDeployFrontendApp
+      DeploymentGroupName: !Sub ${EnvironmentName}-frntnd-cdplgrp
+      DeploymentConfigName: CodeDeployDefault.OneAtATime
+      DeploymentStyle: 
+        DeploymentOption: WITHOUT_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      ServiceRoleArn: !GetAtt RoleIAM4CodeDeploy.Arn
+      Ec2TagFilters: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2-pub-app
+          Type: KEY_AND_VALUE
+
+  # CodeBuild/CodeDeploy for backend app (serverapp) --------------------------------
   CodeBuildBackendApp:
     Type: AWS::CodeBuild::Project
     DependsOn:
+      - RoleIAM4CodeBuild
       - SubnetPub1
       - SecGroup4PubServers
     Properties: 
       Description: !Sub Build of serverapp for ${EnvironmentName}
-      Name: !Sub ${EnvironmentName}-backnd-cbld  #Copied inside RoleIAM4CodeBuild/RoleIAM4CodePipeline; if changed, to change in all places
+      Name: !Sub ${EnvironmentName}-bcknd-cbld #Always exactly same name configured inside RoleIAM4CodeBuild
       ServiceRole: !GetAtt RoleIAM4CodeBuild.Arn 
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-backnd-cbld
+          Value: !Sub ${EnvironmentName}-bcknd-cbld
       Artifacts: 
         Type: CODEPIPELINE
       ConcurrentBuildLimit: 1
@@ -1463,7 +1582,7 @@ Resources:
   CodeDeployBackendApp:
     Type: AWS::CodeDeploy::Application
     Properties: 
-      ApplicationName: !Sub ${EnvironmentName}-backnd-cdpl
+      ApplicationName: !Sub ${EnvironmentName}-bcknd-cdpl
       ComputePlatform: Server
 
   CodeDeployBackendDeplGroup:

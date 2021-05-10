@@ -1,0 +1,15 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /var/www/html
+    overwrite: true
+hooks:
+  BeforeInstall:
+    - location: appspec/clean_index_file.sh
+      timeout: 300
+      runas: root
+  AfterInstall:
+    - location: appspec/set_config_file.sh
+      timeout: 300
+      runas: root

@@ -39,8 +39,8 @@ Sandbox for demos of tools usually involved in DevOps loop.
 
   <details><summary>CloudFormation diagram</summary><img src="Project003/documents/cloudformation-diagram.png"></details>
   <details><summary>CodePipeline diagram</summary><img src="Project003/documents/codepipeline-diagram.png"></details>
-  <details><summary>Rest C++ API</summary><img src="Project003/serverapp/documents/restapi-logic-diagram.png"></details>
-  <details><summary>Rest C++ API</summary><img src="Project003/webclient/documents/modules-organization-diagram.png"></details>
+  <details><summary>Rest C++ API diagram</summary><img src="Project003/serverapp/documents/restapi-logic-diagram.png"></details>
+  <details><summary>WebPage diagram</summary><img src="Project003/webclient/documents/modules-organization-diagram.png"></details>
 
 **Tools and technologies:** AWS CloufFormation with VPC (Subnet/RTables/NACL/SecGroup/IGateway/NATGateway/NATinstances/EIP), EC2 (Instances/ELB), CodePipeline (CodeCommit/CodeBuild/CodeDeploy) and IAM (Roles/InstanceProfiles); C++; HTML; PHP; JSON; YAML
 

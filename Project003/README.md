@@ -22,10 +22,10 @@ Note: Once private instances need communication to the internet at some point, N
   * AWS resource charged by hour and by traffic, not included in AWS free tier
   * Two resources included; so, costs apply twice!
 * Stack containing NAT Instances (yml named "natinstances")
-  * A free-of-charge __\*\*\*__ option while inside free tier period in AWS account
+  * A free-of-charge<sup>:bulb:</sup> option while inside free tier period in AWS account
   * Not an option for production environments, but perfectly adequate for this demo!
 
-__\*\*\*__ It can be run free of charges inside AWS free tier period, if account creating stack has not yet reached limits of free tier for resources provided by this stack.
+:bulb: It can be run free of charges inside AWS free tier period, if account creating stack has not yet reached limits of free tier for resources provided by this stack.
 
 ```diff
 # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.
@@ -38,8 +38,8 @@ __\*\*\*__ It can be run free of charges inside AWS free tier period, if account
   * appspec folder and appspec.yml
     * YAML file and scripts for CodeDeploy implemented by CloudFormation files
   * remaining content
-    * Web page source code (documentation [here](webclient/README.md))
-    * <details><summary>see corresponding diagram</summary><img src="webclient/documents/modules-organization-diagram.png"></details>
+    * web page source code (documentation and other diagrams [here](webclient/README.md))
+    * <details><summary>see main diagram</summary><img src="webclient/documents/modules-organization-diagram.png"></details>
 * Folder **serverapp**:
   * simple REST API developed in C++ to return json responses, with focus for this demo on the HTTP GET method for path /ec2/instance-id
   * buildspec.yml
@@ -47,8 +47,8 @@ __\*\*\*__ It can be run free of charges inside AWS free tier period, if account
   * appspec folder and appspec.yml
     * YAML file and scripts for CodeDeploy implemented by CloudFormation files
   * remaining content
-    * API source code (documentation [here](serverapp/README.md))
-    * <details><summary>see corresponding diagram</summary><img src="serverapp/documents/restapi-logic-diagram.png"></details>
+    * API source code (documentation and other diagrams [here](serverapp/README.md))
+    * <details><summary>see main diagram</summary><img src="serverapp/documents/restapi-logic-diagram.png"></details>
 * Files **cloudformation\*.yml**:
   * create one VPC
     * 4 subnets (2 public, 2 private)
@@ -105,8 +105,8 @@ __\*\*\*__ It can be run free of charges inside AWS free tier period, if account
     * 1 CodePipeline
       * steps for webclient: source from CodeCommit, and deploy with CodeDeploy
       * steps for serverapp: source from CodeCommit, build with CodeBuild, and deploy with CodeDeploy
-	  * <details><summary>see corresponding CodePipeline diagram</summary><img src="documents/codepipeline-diagram.png"></details>
-  <!--* <details><summary>see corresponding CloudFormation diagram</summary><img src="documents/cloudformation-diagram.png"></details> -->
+      * <details><summary>see CodePipeline diagram</summary><img src="documents/codepipeline-diagram.png"></details>
+  <!--* <details><summary>see CloudFormation diagram</summary><img src="documents/cloudformation-diagram.png"></details> -->
 
 ## Preparing environment
 
@@ -131,18 +131,16 @@ Create stack using one of cloudformation\*.yml files. Parameters:
   * Public/Private SubnetX VPC IP range: CIDR block for public subnet; must be in accordance to VPC's CIDR block; they cannot conflict with CIDR block from each other
 * EC2 Configuration
   * KeyPair for EC2 instances: select an already existent key-pair
-  * Ip4ServerConnection: IP or CIDR block from machines that can SSH EC2 public<sup>1</sup> instances
+  * Ip4ServerConnection: IP or CIDR block from machines that can SSH EC2 public<sup>:bulb:1</sup> instances
 * Repository configuration
   * CodeCommit repository for frontend code: input the name of CodeCommit repository created for webclient in previous section
-  * CodeCommit branch name for frontend repo: input the name of the branch to be used in webclient repo created<sup>2</sup>
+  * CodeCommit branch name for frontend repo: input the name of the branch to be used in webclient repo created<sup>:bulb:2</sup>
   * CodeCommit repository for backend code: input the name of CodeCommit repository created for serverapp in previous section
-  * CodeCommit branch name for backend repo: input the name of the branch to be used in serverapp repo created<sup>2</sup>
+  * CodeCommit branch name for backend repo: input the name of the branch to be used in serverapp repo created<sup>:bulb:2</sup>
 
-:one: To SSH private instances via jump host:
-* Enable SSH Agent Forwarding in SSH client in use
-* Connect to one of public instances using SSH and from inside it, then SSH private instance desired
+:bulb:1: To SSH private instances via jump host, it is necessary to enable 'SSH Agent Forwarding' in SSH client in use, connect to one of public instances using SSH, and from public instance then SSH private ones.
 
-:two: Git normally uses "master" while CodeCommit uses "main"; check the branch names available into AWS CodeCommit console for each repository.
+:bulb:2: Git normally uses "master" while CodeCommit uses "main"; check the branch names available into AWS CodeCommit console for each repository.
 
 ### Open demo
 

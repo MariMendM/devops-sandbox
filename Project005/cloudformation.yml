@@ -78,8 +78,7 @@ Parameters:
     
   KeyPairName:
     Description: Enter keypair name for EC2 instances
-    Type: String
-    Default: kp_ctreinamento
+    Type: AWS::EC2::KeyPair::KeyName
 
 #----------------------------------------------------------------------
 #Resources definition
@@ -452,18 +451,10 @@ Outputs:
     Description: ID of the created VPC
     Value: !Ref VPC
 
-  PublicSubnet1:
-    Description: ID of the first public subnet
-    Value: !Ref SubnetPub1
-
   PublicEC2:
-    Description: ID of the public ec2
+    Description: ID of the public ec2 instances
     Value: !Join [ ",", [ !Ref EC2Pub1, !Ref EC2Pub2, !Ref EC2Pub3 ]]
 
   PublicEC2PubIP:
-    Description: Public IP for EC2
+    Description: Public IP for EC2 instances
     Value: !Join [ ",", [ !GetAtt EC2Pub1.PublicIp, !GetAtt EC2Pub2.PublicIp, !GetAtt EC2Pub3.PublicIp ]]
-
-  SecGroups:
-    Description: Id of security group
-    Value: !GetAtt SecGroup4PubServers.GroupId

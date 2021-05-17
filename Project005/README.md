@@ -1,4 +1,4 @@
-# Project002
+# Project005
 
 ## Content
 
@@ -6,11 +6,13 @@
 * [Repo files overview](#repo-files-overview)
 * [Preparing Environment](#preparing-environment)
   * [Create AWS CloudFormation stack](#create-aws-cloudformation-stack)
+  * [Run playbooks using AWS Systems Manager](#run-playbooks-using-aws-systems-manager)
+* [How to use](#how-to-use)
 * [Next steps](#next-steps)
 
 ## Demo description
 
-Demonstrate Ansible's playbook with simple tasks.
+Demonstrate Ansible's playbooks on AWS Cloud. The CloudFormation deploys a minimal stack containing EC2 Managed Instances. Steps are provided to use AWS Systems Manager 'Run Command' with command 'AWS-RunAnsiblePlaybook' in order to run playbooks on  instances.
 
 ```diff
 # Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.
@@ -18,29 +20,33 @@ Demonstrate Ansible's playbook with simple tasks.
 
 ## Repo files overview
 
-* File [cloudformation.yml](cloudformation.yml):
-  * File [cloudformation.yml](cloudformation.yml):
-  * creates very (very!) simple VPC
+* File **[cloudformation.yml](cloudformation.yml)**:
+  * creates a VPC
     * 1 subnet (public);
     * 1 route table (for public subnet);
     * 1 internet gateway (route in public route table);
     * 1 network NACL (for public traffic)
       * HTTP/HTTPS/Ephemeral allowed for In/Outbound to CIDR 0.0.0.0/0
-	  * SSH allowed for In/Outbound to CIDR provided for maintenance
-  * creates security group for instance
+      * SSH allowed for In/Outbound to CIDR provided for maintenance
+  * creates security group for instances
     * HTTP/HTTPS allowed for Inbound to CIDR 0.0.0.0/0
-	* SSH allowed for Inbound to CIDR provided for maintenance
-  * creates an EC2 instance
+    * SSH allowed for Inbound to CIDR provided for maintenance
+  * creates IAM role and Instance Profile for EC2 istances
+    * allowing SSM to manage instances
+  * creates EC2 instances
     * t2.micro;
     * ubuntu 20.04;
     * Ansible installed by cloud init
-  * <details><summary>see corresponding diagram</summary><img src="documents/cloudformation-diagram.png"></details>
+  * <details><summary>see CloudFormation diagram</summary><img src="documents/cloudformation-diagram.png"></details>
+* Files **playbookXX.yml**:
+  * Samples of Ansible's playbook
+    * playbook01: one task installing Apache and one service configuration to start it and keep it enabled on boot
 
 ## Preparing environment
 
 ### Create AWS CloudFormation stack
 
-Create stack using cloudformation.yml file. Parameters:
+In AWSCloudFormation console, create stack using cloudformation.yml file. Parameters:
 * General Configuration
   * Environment Name: the name to be used for tagging resources created by stack
 * Network Configuration
@@ -50,6 +56,20 @@ Create stack using cloudformation.yml file. Parameters:
   * KeyPair for EC2 instances: select an already existent key-pair
   * Ip4ServerConnection: IP or CIDR block from machines that can SSH EC2 public instances
 
+## How to use
+
+### Run playbooks using AWS Systems Manager
+
+1. Check if [instances were registered](https://github.com/MariMendM/devops-sandbox/wiki/AwsSystemsManager#FleetManager) in Systems Manager's fleet;
+1. [Run command](https://github.com/MariMendM/devops-sandbox/wiki/AwsSystemsManager#RunCommand) in Systems Manager:
+   * In 'Command document', choose the option 'AWS-RunAnsiblePlaybook';
+   * In 'Command parameters', paste content of one of playbook.yml samples or input corresponding GitHub's URL; leave other options in their defaults;
+   * In 'Targets', specify instances tags with key equal to 'Name' and value 'p005-ec2' (where p005 will be replaced by whatever 'Environment Name' was input in CloudFormation stack);
+1. Follow up the progress of the command. When all instances complete, check results according to what is expected to each Ansible's playbook sample:
+   * playbook01.yml: check Apache's installation/start opening IP addresses of the instances (they can be seen in CloudFormation's output console of the stack, under 'Public IP for EC2 instances').
+
 ## Next steps
 
-* Add section "Configure Ansible controller/nodes" inside "Preparing Environment"
+* Finish wiki for Systems Manager, referenced by this documentation;
+* Document CloudFormation file (diagram missing);
+* Add some more playbook samples.

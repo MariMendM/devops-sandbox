@@ -51,3 +51,14 @@ Sandbox for demos of tools usually involved in DevOps loop.
 <details><summary>CloudFormation diagram</summary><img src="Project004/documents/cloudformation-diagram.png"></details>
 
 **Tools and technologies:** Docker Swarm :black_small_square: Docker-Compose :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML
+
+---
+
+## Project005
+[![Generic badge](https://img.shields.io/badge/In-Work-yellow.svg)](https://shields.io/)
+
+**Purpose:** Demonstrate Ansible's playbooks into AWS Cloud Services, deploying them using AWS Systems Manager (documentation [here](Project005/README.md)).
+
+<details><summary>Details</summary><img src="Project005/documents/to-do.png"></details>
+
+**Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway), EC2 (instances) and IAM roles :black_small_square: AWS Systems Manager (Run Command) :black_small_square: YAML

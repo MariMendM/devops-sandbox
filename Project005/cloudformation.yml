@@ -1,0 +1,469 @@
+#----------------------------------------------------------------------
+Description:
+  One VPC with
+  - 1 subnet (public);
+  - 1 route table (for public subnet);
+  - 1 internet gateway (route in public route table);
+  - 1 NACL (for public traffic);
+  - 1 security group for ec2 instance;
+  - 3 EC2 instances (in public subnet), ansible and ssm-agent installed;
+  * By default VPC deploys 1 NACL and 1 SecGroup not reachable for changes by CloudFormation
+
+#----------------------------------------------------------------------
+#Metadata to define presentation of input parameters (AWS console interface)
+#----------------------------------------------------------------------
+Metadata:
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "General Configuration"
+        Parameters:
+          - EnvironmentName
+      - Label:
+          default: "Network Configuration"
+        Parameters: 
+          - VpcCIDR
+          - PublicSubnet1CIDR
+      - Label:
+          default: "EC2 Configuration"
+        Parameters:
+          - KeyPairName        
+          - Ip4ServerConnection
+    ParameterLabels:
+      EnvironmentName:
+        default: Environment Name
+      VpcCIDR: 
+        default: VPC IP range
+      PublicSubnet1CIDR:
+        default: First Public Subnet VPC IP range
+      Ip4ServerConnection:
+        default: IP address (or range) for connection to public servers
+      KeyPairName:
+        default: KeyPair for EC2 instances
+
+#----------------------------------------------------------------------
+#Input parameters for user to fulfill
+#----------------------------------------------------------------------
+Parameters:
+
+  EnvironmentName:
+    Description: Enter an environment name to be prefixed to tag 'Name' of resources (max size 15)
+    Type: String
+    Default: p005
+    AllowedPattern: ^\S+$
+    MaxLength: 15
+    ConstraintDescription: cannot have spaces neither be empty
+
+  VpcCIDR:
+    Description: Enter the IP range (CIDR notation) for VPC
+    Type: String
+    Default: 10.10.0.0/16
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
+    ConstraintDescription: must be a valid CIDR range
+
+  PublicSubnet1CIDR:
+    Description: Enter the IP range (CIDR notation) for the first public subnet
+    Type: String
+    Default: 10.10.10.0/24
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
+    ConstraintDescription: must be a valid CIDR range
+
+  Ip4ServerConnection:
+    Description: Enter the IP address (or CIDR range) for connections SSH/RDP/ICMP to public servers (USED ONLY BY DEV ENVTYPE)
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){0,1}$
+    ConstraintDescription: must be an IP or CIDR range
+    
+  KeyPairName:
+    Description: Enter keypair name for EC2 instances
+    Type: String
+    Default: kp_ctreinamento
+
+#----------------------------------------------------------------------
+#Resources definition
+#----------------------------------------------------------------------
+Resources:
+
+  # VPC #############################################################################
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-vpc
+
+  # Public Subnets ------------------------------------------------------------------
+  SubnetPub1:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]   #Selects 1st AZ of current zone
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-subnet-pub1
+
+  # Internet Gateway ----------------------------------------------------------------
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-igw
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn:
+      - VPC
+      - InternetGateway
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # Public Route Table --------------------------------------------------------------
+  RouteTablePub:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-rtb-pub
+    
+  RouteTablePubRouteA:  #Internet traffic using Internet Gateway
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTablePub
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RouteTablePubAssociation2SubnetPub1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - RouteTablePub
+      - SubnetPub1
+    Properties:
+      RouteTableId: !Ref RouteTablePub
+      SubnetId: !Ref SubnetPub1
+
+  # Public Network ACL --------------------------------------------------------------
+  NetworkACLPub:
+    Type: AWS::EC2::NetworkAcl
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-nacl-pub
+
+  NetworkACLPubInboundHTTP: #Allow external requests to internal webservers
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 100
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 80
+         To: 80
+
+  NetworkACLPubInboundHTTPS: #Allow external requests to internal webservers
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 110
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 443
+         To: 443
+
+  NetworkACLPubInboundEphemeral: #Allow external responses to requests from servers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 120
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 1024
+         To: 65535
+
+  NetworkACLPubInboundSSH: #Allow external SSH requests to linux servers; maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:    
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: false
+       RuleNumber: 130
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: !Ref Ip4ServerConnection
+       PortRange:
+         From: 22
+         To: 22
+
+  NetworkACLPubOutboundHTTP: #Allow requests from servers to external webservers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 100
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 80
+         To: 80
+
+  NetworkACLPubOutboundHTTPS: #Allow requests from servers to external webservers; install (apt-get); maintenance
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 110
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 443
+         To: 443
+
+  NetworkACLPubOutboundEphemeral: #Allow server responses to external requests from clients
+    Type: AWS::EC2::NetworkAclEntry
+    DependsOn: NetworkACLPub
+    Properties:
+       NetworkAclId: !Ref NetworkACLPub
+       Egress: true
+       RuleNumber: 120
+       Protocol: 6  #IANA code or -1 for 'All' (6=TCP)
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+       PortRange:
+         From: 1024
+         To: 65535
+
+  NetworkACLPubAssociation2SubnetPub1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    DependsOn:
+      - NetworkACLPub
+      - SubnetPub1
+    Properties: 
+      NetworkAclId: !Ref NetworkACLPub
+      SubnetId: !Ref SubnetPub1
+
+  # Security Group public servers ---------------------------------------------------
+  SecGroup4PubServers:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: VPC
+    Properties:
+      GroupName: "public-servers-sg"
+      GroupDescription: "Security group for public servers"
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-sg-pubservers
+
+  SecGroup4PubServersInboundHTTP: #Allow external requests to internal webservers
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4PubServers
+    Properties:
+      GroupId: !Ref SecGroup4PubServers
+      Description: "Inbound for HTTP"
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+
+  SecGroup4PubServersInboundHTTPS: #Allow external requests to internal webservers
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4PubServers
+    Properties:
+      GroupId: !Ref SecGroup4PubServers
+      Description: "Inbound for HTTPS"
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+
+  SecGroup4PubServersInboundSSH: #Allow external SSH requests to linux servers; maintenance (required by ansible)
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    DependsOn: SecGroup4PubServers
+    Properties:
+      GroupId: !Ref SecGroup4PubServers
+      Description: "Inbound for SSH"
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: !Ref Ip4ServerConnection
+
+  ###################################################################################
+  
+  # EC2 #############################################################################
+  # IAM Profile for instances -------------------------------------------------------
+  IAMInstanceProfile4EC2:
+    Type: AWS::IAM::InstanceProfile
+    DependsOn: RoleIAM4EC2
+    Properties:
+      InstanceProfileName: !Sub ${EnvironmentName}-instance-profile
+      Path: /
+      Roles:
+         - !Ref RoleIAM4EC2
+
+  RoleIAM4EC2:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Sub Allows EC2 instances from ${EnvironmentName} to have access and to be managed by SSM
+      RoleName: !Sub ${EnvironmentName}-ec2-ssm-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: /service-role/
+      ManagedPolicyArns: 
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonEC2RoleforSSM #SSM allowed to manage EC2 instance by ssm-agent
+        # - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonSSMFullAccess #TODO - Really necessary? Don't think so!
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2-smm-role
+
+  # Public instances ----------------------------------------------------------------
+  EC2Pub1:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4PubServers
+      - NetworkACLPub
+      - IAMInstanceProfile4EC2
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPub1
+      SecurityGroupIds:
+        - !GetAtt SecGroup4PubServers.GroupId
+      IamInstanceProfile: !Ref IAMInstanceProfile4EC2
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2
+      UserData:
+        Fn::Base64: !Sub |
+           #!/bin/bash -xe
+           #
+           # Install Ansible
+           sudo apt-add-repository --yes --update ppa:ansible/ansible
+           sudo apt install ansible -y
+           #
+           # Install SSM-Agent (it is pre-installed; if necessary at any time, following commands will serve)
+           # sudo snap install amazon-ssm-agent --classic
+           # sudo snap start amazon-ssm-agent
+           # #sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+  EC2Pub2:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4PubServers
+      - NetworkACLPub
+      - IAMInstanceProfile4EC2
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPub1
+      SecurityGroupIds:
+        - !GetAtt SecGroup4PubServers.GroupId
+      IamInstanceProfile: !Ref IAMInstanceProfile4EC2
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2
+      UserData:
+        Fn::Base64: !Sub |
+           #!/bin/bash -xe
+           #
+           # Install Ansible
+           sudo apt-add-repository --yes --update ppa:ansible/ansible
+           sudo apt install ansible -y
+           #
+           # Install SSM-Agent (it is pre-installed; if necessary at any time, following commands will serve)
+           # sudo snap install amazon-ssm-agent --classic
+           # sudo snap start amazon-ssm-agent
+           # #sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+  EC2Pub3:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - SecGroup4PubServers
+      - NetworkACLPub
+      - IAMInstanceProfile4EC2
+    Properties:
+      ImageId: ami-0885b1f6bd170450c #Ubuntu Server 20.04 64bit-x86
+      InstanceType: t2.micro
+      SubnetId: !Ref SubnetPub1
+      SecurityGroupIds:
+        - !GetAtt SecGroup4PubServers.GroupId
+      IamInstanceProfile: !Ref IAMInstanceProfile4EC2
+      KeyName: !Ref KeyPairName
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ec2
+      UserData:
+        Fn::Base64: !Sub |
+           #!/bin/bash -xe
+           #
+           # Install Ansible
+           sudo apt-add-repository --yes --update ppa:ansible/ansible
+           sudo apt install ansible -y
+           #
+           # Install SSM-Agent (it is pre-installed; if necessary at any time, following commands will serve)
+           # sudo snap install amazon-ssm-agent --classic
+           # sudo snap start amazon-ssm-agent
+           # #sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+  ###################################################################################
+  
+#----------------------------------------------------------------------
+#Output information for user after stack creation
+#----------------------------------------------------------------------
+Outputs:
+  VPC:
+    Description: ID of the created VPC
+    Value: !Ref VPC
+
+  PublicSubnet1:
+    Description: ID of the first public subnet
+    Value: !Ref SubnetPub1
+
+  PublicEC2:
+    Description: ID of the public ec2
+    Value: !Join [ ",", [ !Ref EC2Pub1, !Ref EC2Pub2, !Ref EC2Pub3 ]]
+
+  PublicEC2PubIP:
+    Description: Public IP for EC2
+    Value: !Join [ ",", [ !GetAtt EC2Pub1.PublicIp, !GetAtt EC2Pub2.PublicIp, !GetAtt EC2Pub3.PublicIp ]]
+
+  SecGroups:
+    Description: Id of security group
+    Value: !GetAtt SecGroup4PubServers.GroupId

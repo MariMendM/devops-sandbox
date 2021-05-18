@@ -65,11 +65,9 @@ In AWSCloudFormation console, create stack using cloudformation.yml file. Parame
    * In 'Command document', choose the option 'AWS-RunAnsiblePlaybook';
    * In 'Command parameters', paste content of one of playbook.yml samples or input corresponding GitHub's URL; leave other options in their defaults;
    * In 'Targets', specify instances tags with key equal to 'Name' and value 'p005-ec2' (where p005 will be replaced by whatever 'Environment Name' was input in CloudFormation stack);
-1. Follow up the progress of the command. When all instances complete, check results according to what is expected to each Ansible's playbook sample:
+1. Follow up the progress of the command. When all instances complete, check results according to what is expected for each Ansible's playbook sample:
    * playbook01.yml: check Apache's installation/start opening IP addresses of the instances (they can be seen in CloudFormation's output console of the stack, under 'Public IP for EC2 instances').
 
 ## Next steps
 
-* Finish wiki for Systems Manager, referenced by this documentation;
-* Document CloudFormation file (diagram missing);
 * Add some more playbook samples.

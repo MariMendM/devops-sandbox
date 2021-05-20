@@ -5,7 +5,7 @@ Sandbox for demos of tools usually involved in DevOps loop.
 ---
 
 ## Project001
-[![Generic badge](https://img.shields.io/badge/Status-Finished-green.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Status-Finished-brightgreen.svg)](https://shields.io/)
 
 **Purpose:** Demonstrate a Jenkins' pipeline triggered by GitHub's webhook, building a Docker image to host a very simple website (documentation [here](Project001/README.md)).
 
@@ -19,13 +19,13 @@ Sandbox for demos of tools usually involved in DevOps loop.
 ---
 
 ## Project002
-[![Generic badge](https://img.shields.io/badge/Status-NotStarted-red.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Status-InWork-yellow.svg)](https://shields.io/)
 
-**Purpose:** Demonstrate Ansible's playbook with simple tasks (documentation [here](Project002/README.md)).
+**Purpose:** Demonstrate Ansible's automated configuration over AWS Cloud (documentation [here](Project002/README.md)).
 
 <details><summary>Details</summary><img src="Project002/documents/to-do.png"></details>
 
-**Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML
+**Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML :black_small_square: JSON
 
 ---
 
@@ -44,7 +44,7 @@ Sandbox for demos of tools usually involved in DevOps loop.
 ---
 
 ## Project004
-[![Generic badge](https://img.shields.io/badge/Status-Finished-green.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Status-Finished-brightgreen.svg)](https://shields.io/)
 
 **Purpose:** Demonstrate AWS CloudFormation stack creation to work with Docker Swarm (documentation [here](Project004/README.md)).
 
@@ -55,10 +55,10 @@ Sandbox for demos of tools usually involved in DevOps loop.
 ---
 
 ## Project005
-[![Generic badge](https://img.shields.io/badge/In-Work-yellow.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Status-Finished-brightgreen.svg)](https://shields.io/)
 
 **Purpose:** Demonstrate Ansible's playbooks into AWS Cloud Services, deploying them using AWS Systems Manager (documentation [here](Project005/README.md)).
 
-<details><summary>Details</summary><img src="Project005/documents/to-do.png"></details>
+<details><summary>Details</summary><img src="Project005/documents/cloudformation-diagram.png"></details>
 
 **Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway), EC2 (instances) and IAM roles :black_small_square: AWS Systems Manager (Run Command) :black_small_square: YAML

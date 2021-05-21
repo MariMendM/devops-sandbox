@@ -61,9 +61,9 @@
   connection: local
   gather_facts: false
   tasks:
-    - name: Adding ec2 instances
+    - name: Adding ec2 instances' public IPs
       ansible.builtin.add_host:
-        name: "{{ item.private_ip_address }}"
+        name: "{{ item.public_ip_address }}"
         ansible_user: ubuntu #user default from Ubuntu EC2 instances
         host_key_checking: false
         groups: aws
@@ -98,10 +98,10 @@
         line: "[aws]" #writes the group name inside the file
         create: yes
     
-    - name: Adding ec2 instances to Ansible's file inventory
+    - name: Adding ec2 instances' public IPs
       ansible.builtin.lineinfile:
         path: /etc/ansible/aws_{{aws_cfn_environment_name}}
-        line: "{{ item.private_ip_address }}"
+        line: "{{ item.public_ip_address }}"
       # no_log: true
       # when: ec2_list.instances|length > 0
       loop: "{{ ec2_list['instances'] | flatten(levels=1) }}"
@@ -118,10 +118,10 @@
     ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
   tasks:
     - name: Waiting for instances to become available
-      wait_for_connection:
+      ansible.builtin.wait_for_connection:
 
     - name: Gathering facts for first time
-      setup:
+      ansible.builtin.setup:
 
 ###########################################################################
 # Play that runs over in-memory inventory for demonstration
@@ -130,5 +130,10 @@
   hosts: aws
   gather_facts: false
   tasks:
-    - name: Collecting hostname of in-memory inventory, group 'aws'
+    - name: Collecting hostname from hosts of in-memory inventory, group 'aws'
       command: hostname
+      register: hostname_list
+
+    - name: Printing collected hostnames
+      shell: echo "{{ item }}"
+      loop: "{{ hostname_list.stdout_lines }}"

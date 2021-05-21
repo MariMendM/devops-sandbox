@@ -28,7 +28,8 @@ Demonstrate Ansible's automated installation/configuration over AWS Cloud. From 
       * 1 internet gateway (route in public route table)
       * 1 network NACL (for public traffic)
         * HTTP/HTTPS/Ephemeral allowed for In/Outbound to CIDR 0.0.0.0/0
-        * SSH/ICMP allowed for In/Outbound to IP provided as host controller (both required by Ansible's playbook)
+		* ICMP allowed for In/Outbound to IP provided as host controller (required by Ansible's playbook)
+        * SSH allowed for Inbound to IP provided as host controller (required by Ansible's playbook)
     * security group for instances
       * HTTP/HTTPS allowed for Inbound to CIDR 0.0.0.0/0
       * SSH/ICMP allowed for Inbound to IP provided as host controller (both required by Ansible's playbook)

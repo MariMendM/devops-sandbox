@@ -1,0 +1,13 @@
+- name: Testing inventory file created by playbook-provision-environment.yml
+  hosts: aws #name of the group created inside file /etc/ansible/aws_{env_name}
+  tasks:
+
+    - name: Collecting hostname
+      command: hostname
+
+    - name: Installing Apache
+      become: yes
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes

@@ -7,7 +7,7 @@ Description:
   - 1 NACL (for public traffic);
   - 1 security group for ec2 instance;
   - 3 EC2 instances (in public subnet), ansible installed;
-  * By default VPC also deploys 1 NetworkACL and 1 SecurityGroup not reachable for changes by CloudFormation
+  * By default VPC deploys 1 NACL and 1 SecGroup not reachable for changes by CloudFormation
 
 #----------------------------------------------------------------------
 #Metadata to define presentation of input parameters (AWS console interface)
@@ -43,28 +43,29 @@ Metadata:
         default: KeyPair for EC2 instances
 
 #----------------------------------------------------------------------
-#Input parameters for user to fullfil
+#Input parameters for user to fulfill
 #----------------------------------------------------------------------
 Parameters:
 
   EnvironmentName:
-    Description: Enter an environment name to be prefixed to tag 'Name' of resources
+    Description: Enter an environment name to be prefixed to tag 'Name' of resources (max size 15)
     Type: String
-    Default: project001
+    Default: p002
     AllowedPattern: ^\S+$
+    MaxLength: 15
     ConstraintDescription: cannot have spaces neither be empty
 
   VpcCIDR:
     Description: Enter the IP range (CIDR notation) for VPC
     Type: String
-    Default: 10.0.0.0/16
+    Default: 10.10.0.0/16
     AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
     ConstraintDescription: must be a valid CIDR range
 
   PublicSubnet1CIDR:
     Description: Enter the IP range (CIDR notation) for the first public subnet
     Type: String
-    Default: 10.0.10.0/24
+    Default: 10.10.10.0/24
     AllowedPattern: ^((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2}){1}$
     ConstraintDescription: must be a valid CIDR range
 
@@ -77,8 +78,7 @@ Parameters:
     
   KeyPairName:
     Description: Enter keypair name for EC2 instances
-    Type: String
-    Default: kp_ctreinamento
+    Type: AWS::EC2::KeyPair::KeyName
 
 #----------------------------------------------------------------------
 #Resources definition
@@ -334,10 +334,11 @@ Resources:
       KeyName: !Ref KeyPairName
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-ec2
+          Value: !Sub ${EnvironmentName}-ec2-controller
       UserData:
         Fn::Base64: !Sub |
            #!/bin/bash -xe
+           sudo apt update -y
            #
            # Install Ansible
            sudo apt-add-repository --yes --update ppa:ansible/ansible
@@ -357,10 +358,11 @@ Resources:
       KeyName: !Ref KeyPairName
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-ec2
+          Value: !Sub ${EnvironmentName}-ec2-managed01
       UserData:
         Fn::Base64: !Sub |
            #!/bin/bash -xe
+           sudo apt update -y
            #
            # Install Ansible
            sudo apt-add-repository --yes --update ppa:ansible/ansible
@@ -380,10 +382,11 @@ Resources:
       KeyName: !Ref KeyPairName
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-ec2
+          Value: !Sub ${EnvironmentName}-ec2-managed02
       UserData:
         Fn::Base64: !Sub |
            #!/bin/bash -xe
+           sudo apt update -y
            #
            # Install Ansible
            sudo apt-add-repository --yes --update ppa:ansible/ansible
@@ -399,18 +402,10 @@ Outputs:
     Description: ID of the created VPC
     Value: !Ref VPC
 
-  PublicSubnet1:
-    Description: ID of the first public subnet
-    Value: !Ref SubnetPub1
-
   PublicEC2:
-    Description: ID of the public ec2
+    Description: ID of the public ec2 instances
     Value: !Join [ ",", [ !Ref EC2Pub1, !Ref EC2Pub2, !Ref EC2Pub3 ]]
 
   PublicEC2PubIP:
-    Description: Public IP for EC2
+    Description: Public IP for EC2 instances
     Value: !Join [ ",", [ !GetAtt EC2Pub1.PublicIp, !GetAtt EC2Pub2.PublicIp, !GetAtt EC2Pub3.PublicIp ]]
-
-  SecGroups:
-    Description: Id of security group
-    Value: !GetAtt SecGroup4PubServers.GroupId

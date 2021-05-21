@@ -19,7 +19,7 @@ Sandbox for demos of tools usually involved in DevOps loop.
 ---
 
 ## Project002
-[![Generic badge](https://img.shields.io/badge/Status-InWork-yellow.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Status-PendingDoc-yellow.svg)](https://shields.io/)
 
 **Purpose:** Demonstrate Ansible's automated configuration over AWS Cloud (documentation [here](Project002/README.md)).
 

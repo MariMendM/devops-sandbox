@@ -1,0 +1,8 @@
+{
+  "aws_region": "us-east-1",
+  "aws_cfn_environment_name": "p002",
+  "aws_cfn_vpc_cidr": "10.10.0.0/16",
+  "aws_cfn_pub_subnet1_cidr": "10.10.10.0/24",
+  "aws_cfn_ip_for_server_connection": "0.0.0.0/0",
+  "aws_cfn_ec2_keypair": "p002keypair"
+}

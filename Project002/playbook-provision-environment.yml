@@ -1,0 +1,134 @@
+###########################################################################
+# Play that provisions the CloudFormation template included in the directory
+###########################################################################
+- name: Provisioning and configuring AWS infrastructure
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    aws_region: us-east-1
+    aws_cfn_environment_name: p002
+    aws_cfn_vpc_cidr: 10.10.0.0/16
+    aws_cfn_pub_subnet1_cidr: 10.10.10.0/24
+    aws_cfn_ip_for_server_connection: 0.0.0.0/0
+    aws_cfn_ec2_keypair_name: p002keypair
+
+  tasks:
+    # - name: Printing vars
+      # ansible.builtin.debug:
+         # msg: "{{ vars }}"
+
+    - name: Making vars persistent for next plays
+      ansible.builtin.set_fact:
+        aws_cfn_environment_name: "{{aws_cfn_environment_name}}"
+
+    - name: Creating/updating AWS CloudFormation stack
+      amazon.aws.cloudformation:
+        stack_name: "{{ aws_cfn_environment_name }}-stack"
+        state: present #create or update
+        region: "{{ aws_region }}"
+        disable_rollback: false
+        template: cloudformation.yml
+        template_parameters:
+          EnvironmentName: "{{ aws_cfn_environment_name }}"
+          VpcCIDR: "{{ aws_cfn_vpc_cidr }}"
+          PublicSubnet1CIDR: "{{ aws_cfn_pub_subnet1_cidr }}"
+          Ip4ServerConnection: "{{ aws_cfn_ip_for_server_connection }}"
+          KeyPairName: "{{ aws_cfn_ec2_keypair_name }}"
+        tags:
+          stack: "{{ aws_cfn_environment_name }}-stack"
+
+    - name: Getting info from EC2 instances of stack
+      community.aws.ec2_instance_info:
+        aws_region: "{{ aws_region }}"
+        filters:
+          "tag:Name": "*{{ aws_cfn_environment_name }}*" # matching *env_name*, to be independent of the exact name provided into cfn template
+          instance-state-name: [ "running" ]
+      register: ec2_list
+
+    - name: Printing EC2 instances ID and IPs
+      shell: echo
+      loop: "{{ ec2_list['instances'] }}"
+      loop_control:
+        label: "{{ item.instance_id }} - {{ item.private_ip_address }} - {{ item.public_ip_address }}"
+
+###########################################################################
+# Play that creates an in-memory inventory, allowing to extend this playbook
+# adding more plays over the hosts
+###########################################################################
+- name: Adding ec2 instances to Ansible's in-memory inventory
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Adding ec2 instances
+      ansible.builtin.add_host:
+        name: "{{ item.private_ip_address }}"
+        ansible_user: ubuntu #user default from Ubuntu EC2 instances
+        host_key_checking: false
+        groups: aws
+      # no_log: true
+      # when: ec2_list.instances|length > 0
+      loop: "{{ ec2_list['instances'] | flatten(levels=1) }}"
+      loop_control: 
+        label: "{{ item.instance_id }}"
+
+###########################################################################
+# Play that creates an inventory file in disk, allowing to exit this playbook
+# and be able to run other playbooks in the provisioned hosts
+###########################################################################
+- name: Adding ec2 instances to Ansible's inventory /etc/ansible/aws
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: yes #sudo (needed to write into /etc)
+  tasks:
+    - name: Setting fact (variable) from previous play's in same host
+      ansible.builtin.set_fact:
+        aws_cfn_environment_name: "{{hostvars['localhost']['aws_cfn_environment_name']}}"
+
+    - name: Deleting Ansible's inventory /etc/ansible/aws_{{aws_cfn_environment_name}}
+      ansible.builtin.file:
+        path: /etc/ansible/aws_{{aws_cfn_environment_name}}
+        state: absent
+
+    - name: Creating Ansible's inventory /etc/ansible/aws_{{aws_cfn_environment_name}}
+      ansible.builtin.lineinfile:
+        path: /etc/ansible/aws_{{aws_cfn_environment_name}}
+        line: "[aws]" #writes the group name inside the file
+        create: yes
+    
+    - name: Adding ec2 instances to Ansible's file inventory
+      ansible.builtin.lineinfile:
+        path: /etc/ansible/aws_{{aws_cfn_environment_name}}
+        line: "{{ item.private_ip_address }}"
+      # no_log: true
+      # when: ec2_list.instances|length > 0
+      loop: "{{ ec2_list['instances'] | flatten(levels=1) }}"
+      loop_control: 
+        label: "{{ item.instance_id }}"
+
+###########################################################################
+# Play that waits EC2 become available before to exit
+###########################################################################
+- name: Waiting availability of provisioned EC2 instances
+  hosts: aws
+  gather_facts: false
+  vars:
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+  tasks:
+    - name: Waiting for instances to become available
+      wait_for_connection:
+
+    - name: Gathering facts for first time
+      setup:
+
+###########################################################################
+# Play that runs over in-memory inventory for demonstration
+###########################################################################
+- name: Testing in-memory inventory collecting hostnames
+  hosts: aws
+  gather_facts: false
+  tasks:
+    - name: Collecting hostname of in-memory inventory, group 'aws'
+      command: hostname

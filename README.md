@@ -19,11 +19,11 @@ Sandbox for demos of tools usually involved in DevOps loop.
 ---
 
 ## Project002
-[![Generic badge](https://img.shields.io/badge/Status-PendingDoc-yellow.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Status-Finished-brightgreen.svg)](https://shields.io/)
 
-**Purpose:** Demonstrate Ansible's automated configuration over AWS Cloud (documentation [here](Project002/README.md)).
+**Purpose:** Demonstrate Ansible's automated configuration over AWS Cloud, provisioning CloudFormation stack from Ansible playbook (documentation [here](Project002/README.md)).
 
-<details><summary>Details</summary><img src="Project002/documents/to-do.png"></details>
+<details><summary>Details</summary><img src="Project002/documents/cloudformation-diagram.png"></details>
 
 **Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML :black_small_square: JSON
 
@@ -57,7 +57,7 @@ Sandbox for demos of tools usually involved in DevOps loop.
 ## Project005
 [![Generic badge](https://img.shields.io/badge/Status-Finished-brightgreen.svg)](https://shields.io/)
 
-**Purpose:** Demonstrate Ansible's playbooks into AWS Cloud Services, deploying them using AWS Systems Manager (documentation [here](Project005/README.md)).
+**Purpose:** Demonstrate Ansible's playbooks into AWS Cloud Services, deploying them using Run Command from AWS Systems Manager (documentation [here](Project005/README.md)).
 
 <details><summary>Details</summary><img src="Project005/documents/cloudformation-diagram.png"></details>
 

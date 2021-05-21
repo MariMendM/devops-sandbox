@@ -5,7 +5,7 @@
 * [Demo description](#demo-description)
 * [Repo files overview](#repo-files-overview)
 * [Preparing Environment](#preparing-environment)
-  * [### Configure host to run entry point playbook](#configure-host-to-run-entry-point-playbook)
+  * [Configure host to run entry point playbook](#configure-host-to-run-entry-point-playbook)
   * [Create a key-pair](#create-a-key-pair)
   * [Running the provision playbook](#running-the-provision-playbook)
 * [How to use](#how-to-use)
@@ -54,26 +54,26 @@ Demonstrate Ansible's automated install and configuration over AWS Cloud. From a
 The entry point of this demo is the 'playbook-provision-environment.yml' file. To run it, it is necessary to install:
 
 1. Python and pip (some linux systems already have them installed by default):
-```
-sudo apt install python3 python3-pip -y
-```
+   ```
+   sudo apt install python3 python3-pip -y
+   ```
 1. Python's boto3:
-```
-pip install boto3
-```
+   ```
+   pip install boto3
+   ```
 1. Ansible:
-```
-sudo apt-add-repository --yes --update ppa:ansible/ansible
-sudo apt install ansible -y
-```
+   ```
+   sudo apt-add-repository --yes --update ppa:ansible/ansible
+   sudo apt install ansible -y
+   ```
 1. Required Ansible's collections from Ansible Galaxy repository, using provided 'requirements.yml':
-```
-ansible-galaxy collection install -r requirements.yml
-```
-or install them manually:
-```
-ansible-galaxy collection install amazon.aws community.aws
-```
+   ```
+   ansible-galaxy collection install -r requirements.yml
+   ```
+   or install them manually:
+   ```
+   ansible-galaxy collection install amazon.aws community.aws
+   ```
 
 ### Create a key-pair
 
@@ -97,14 +97,14 @@ If any of the values is going to be modified, two options are available:
 1. Pass the variables by command line when running the playbook, overwriting the values hard-coded inside playbook;  
 Best choice when changing only few variables;  
 Example: changing only hard-coded AWS US East N.Virginia region 'us-east-1' to AWS South America Sao Paulo 'sa-east-1':
-```
-ansible-playbook playbook-provision-environment.yml --private-key my-key-pair.pem --extra-vars "aws_region=sa-east-1"
-```
+   ```
+   ansible-playbook playbook-provision-environment.yml --private-key my-key-pair.pem --extra-vars "aws_region=sa-east-1"
+   ```
 1. Change provided 'playbook-provision-environment.json' as desired and use it to run the playbook;  
 Best choice when changing most part of the variables:
-```
-ansible-playbook playbook-provision-environment.yml --private-key my-key-pair.pem --extra-vars "@playbook-provision-environment.json"
-```
+   ```
+   ansible-playbook playbook-provision-environment.yml --private-key my-key-pair.pem --extra-vars "@playbook-provision-environment.json"
+   ```
 
 ## How to use
 

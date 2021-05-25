@@ -1,12 +1,18 @@
-- hosts: 127.0.0.1
+###########################################################################
+- name: Manage Apache
+###########################################################################
+  hosts: 127.0.0.1
   tasks:
     - name: Installing Apache
       become: yes
-      apt:
+      ansible.builtin.apt:
         name: apache2
         state: present
         update_cache: yes
-    - service:
+
+    - name: Starting and enabling Apache in boot
+      become: yes
+      ansible.builtin.service:
         name: "{{ item }}"
         enabled: yes
         state: started

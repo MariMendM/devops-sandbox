@@ -1,0 +1,13 @@
+###########################################################################
+- name: Collect hostname from managed nodes
+###########################################################################
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Collecting hostname
+      command: hostname
+      register: hostname_out
+
+    - name: Printing collected hostname
+      shell: echo "{{ item }}"
+      loop: "{{ hostname_out.stdout_lines }}"

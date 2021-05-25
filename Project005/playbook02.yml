@@ -1,0 +1,54 @@
+###########################################################################
+- name: Sparse checkout https://github.com/MariMendM/devops-sandbox/Project001/website
+###########################################################################
+  hosts: 127.0.0.1
+  vars:
+    checkout_folder: /home/ubuntu/devops-sandbox
+    folder_to_clone: Project001/website
+    folder_repo: https://github.com/MariMendM/devops-sandbox
+
+  tasks:
+    - name: Persisting variables for next plays in playbook
+      ansible.builtin.set_fact:
+        checkout_folder: "{{ checkout_folder }}"
+        folder_to_clone: "{{ folder_to_clone }}"
+
+    - name: Deleting sparse checkout folder
+      ansible.builtin.file:
+        path: "{{ checkout_folder }}"
+        state: absent
+
+    - name: Creating sparse checkout folder
+      ansible.builtin.file:
+        path: "{{ checkout_folder }}"
+        state: directory
+
+    - name: Git init, git remote add and sparse checkout true
+      shell: |
+        git init
+        git remote add -f origin {{ folder_repo }}
+        git config core.sparseCheckout true
+      args:
+        chdir: "{{ checkout_folder }}"
+
+    - name: Creating sparse checkout file with name of folder to be cloned
+      ansible.builtin.lineinfile:
+        path: "{{ checkout_folder }}/.git/info/sparse-checkout"
+        line: "{{ folder_to_clone }}"
+        create: yes
+
+    - name: Git pull folder from repo
+      shell: git pull origin master
+      args:
+        chdir: "{{ checkout_folder }}"
+
+###########################################################################
+- name: Copy website to Apache folder
+###########################################################################
+  hosts: 127.0.0.1
+  tasks:
+    - name: Copying
+      become: yes
+      ansible.builtin.copy:
+        src: "{{ checkout_folder }}/{{ folder_to_clone }}/" #last slash determines that only the content shall be copied, not the folder itself
+        dest: /var/www/html

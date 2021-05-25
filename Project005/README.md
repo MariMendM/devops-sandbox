@@ -38,9 +38,17 @@ Demonstrate Ansible's playbooks on AWS Cloud. The CloudFormation deploys a minim
     * ubuntu 20.04;
     * Ansible installed by cloud init
   * <details><summary>see CloudFormation diagram</summary><img src="documents/cloudformation-diagram.png"></details>
-* Files **playbookXX.yml**:
+* Files **playbook\*.yml**:
   * Samples of Ansible's playbook
-    * playbook01: one task installing Apache and one service configuration to start it and keep it enabled on boot
+  * NOTE: take care with names of plays and tasks; to run a playbook with AWS Systems Manager Run Command, they cannot contain some chars that Ansible usually allows, such as \(\) or \-
+    * [playbook01](playbook01.yml): install and configure Apache service
+      * 1 play, tasks including 'apt' and 'service'
+    * [playbook02](playbook02.yml): sparse checkout of [Project001/website](https://github.com/MariMendM/devops-sandbox/tree/master/Project001/website) and copy of content to Apache's www folder
+      * requires to run playbook01 for Apache install
+      * 2 plays, tasks including 'line', 'shell', 'lineinfile' and 'copy'
+      * variables reused between plays of same host using 'set_fact'
+    * [playbook03](playbook03.yml): collect host names from managed nodes
+      * 1 play, tasks 'command' and 'shell'
 
 ## Preparing environment
 
@@ -66,7 +74,11 @@ In AWSCloudFormation console, create stack using cloudformation.yml file. Parame
    * In 'Command parameters', paste content of one of playbook.yml samples or input corresponding GitHub's URL; leave other options in their defaults;
    * In 'Targets', specify instances tags with key equal to 'Name' and value 'p005-ec2' (where p005 will be replaced by whatever 'Environment Name' was input in CloudFormation stack);
 1. Follow up the progress of the command. When all instances complete, check results according to what is expected for each Ansible's playbook sample:
-   * playbook01.yml: check Apache's installation/start opening IP addresses of the instances (they can be seen in CloudFormation's output console of the stack, under 'Public IP for EC2 instances').
+   * playbook01.yml: check Apache's installation/start opening IP addresses <sup>:bulb:</sup> of the instances;
+   * playbook02.yml: check website opening IP addresses <sup>:bulb:</sup> of the instances;
+   * playbook03.yml: check host names of instances in AWS Systems Manager Run Command console, more specifically under 'Targets and Outputs', clicking each instance ID in which command has run;
+
+:bulb: IP addresses of the instances can be seen in CloudFormation's output console of the stack, under 'Public IP for EC2 instances'.
 
 ## Next steps
 

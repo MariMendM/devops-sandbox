@@ -3,11 +3,7 @@
 ## Description
 
 Simple webpage intended to provide a "visualization" of AWS infrastructure implemented in this demo. It actually only displays AWS EC2 meta-data from instances hosting the demo.
-According to CloudFormation file choice, it will be possible to have \[1-N\] EC2 public instances (the ones hosting this webclient), and \[1-N\] EC2 private instances (the ones hosting the serverapp). In case of 1-public/1-private infrastructure, no load balancers are attached. Refreshing this webpage, will then:
-* display the instance-id of the single EC2 instance hosting webclient; and
-* display the instance-id of the single EC2 instance hosting serverapp;
-
-In case of N-public/N-private infrastructure, Load Balancers for public and private instances are actually attached. Refreshing this webpage, will then:
+The CloudFormation file for Project003 will provision 2 EC2 public instances (the ones hosting this webclient), and 2 EC2 private instances (the ones hosting the serverapp), with Load Balancers for public and private instances attached. Refreshing this webpage, will then:
 * trigger Frontend Load Balancer coordinating all public instances, displaying the instance-id of the host designated by the FLB; and
 * trigger Backend Load Balancer coordinating all private instances, displaying the instance-id of the host designated by the BLB.
 
@@ -63,6 +59,6 @@ Simply copying (or cloning) webclient folder content to Apache's /var/www/html f
 
 ## How to open
 
-Open webpage http://\<DNS-front-load-balancer\>/index.php (or http://\<IP-or-DNS-host-webclient\>:\<port\>/index.php in case a FrontEnd Load Balancer is not  deployed by CloudFormation):
+Open webpage http://\<DNS-front-load-balancer\>/index.html:
 * Refresh page to exercise Frontend Load Balancer (each time load is targeted in a different public EC2 host, the corresponding EC2 instance-id is displayed);
 * Refresh the page or click button to to exercise Backend Load Balancer (each time load is targeted in a different private EC2 host, the corresponding EC2 instance-id is displayed).

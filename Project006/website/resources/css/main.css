@@ -1,0 +1,92 @@
+
+html, body {
+  height: auto;
+  overflow-x: hidden;
+  width: auto;
+  margin: auto; }
+
+body {
+  justify-content: center;
+  background-color: #363030; 
+  padding: 6em 4em 4em 4em; }
+  @media screen and (max-width: 1680px) {
+    body {
+      padding: 6em 3.5em 3.5em 3.5em; } }
+  @media screen and (max-width: 736px) {
+    body {
+      padding: 5em 2em 2em 2em; } }
+  @media screen and (max-width: 360px) {
+    body {
+      padding: 5em 1.25em 1.25em 1.25em; } }
+
+body {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: sans-serif;
+  font-size: 16pt;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.65em; }
+  @media screen and (max-width: 1680px) {
+    body {
+      font-size: 12pt; } }
+  @media screen and (max-width: 1280px) {
+    body {
+      font-size: 11pt; } }
+  @media screen and (max-width: 980px) {
+    body {
+      font-size: 12pt; } }
+  @media screen and (max-width: 736px) {
+    body {
+      font-size: 12pt; } }
+  @media screen and (max-width: 480px) {
+    body {
+      font-size: 12pt; } }
+
+p {
+  margin: 0 0 2em 0; }
+
+h1, h2, h3, h4, h5, h6 {
+  color: #fff;
+  font-weight: 700;
+  line-height: 1em;
+  margin: 0 0 1em 0; }
+.hx-for-error-msg {
+  color: #ffb366; }
+
+h1 {
+  font-size: 2.25em;
+  line-height: 1.25em;
+  margin: 0 0 0.75em 0;  }
+
+h2 {
+  color: #1cb495;
+  font-size: 1.75em;
+  line-height: 1.5em; }
+
+hr {
+  border: 0;
+  border-bottom: solid 2px rgba(255, 255, 255, 0.35);
+  margin: 2em 0; }
+
+button {
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, opacity 0.2s ease-in-out;
+  background-color: #1cb495;
+  border-radius: 8px;
+  border: 0;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-block;
+  font-weight: 700;
+  height: 3em;
+  width: 40%;
+  line-height: 2.75em;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap; }
+button:hover {
+    background-color: #1fcaa7;
+	color: #000000;	}
+@media screen and (max-width: 1000px) {
+  button {
+    font-size: 20pt; }

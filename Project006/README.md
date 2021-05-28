@@ -92,14 +92,17 @@ It shall display message "503 Service Temporarily Unavailable" and/or "502 Bad G
 <!--Lots of configs that may conflict
 They are not expected to deploy a machine in few minutes-->
 
-#### Lifecycle Hook
+#### Auto Scaling Lifecycle Hook
 
+Lifecycle hooks are an Auto Scaling capability that allows Auto Scaling Group to be aware of EC2 instances lifecycle, providing a "pause" in EC2 instance state transitions. If it is a launch hook, it keeps instance in 'pending' state; if it is a termination hook, it keeps instance in 'terminating' state. In both cases, custom actions can be performed until the "pause" ends either by the timeout configured for the hook, or by receiving a "complete-lifecycle-action" signal. If the signal received is CONTINUE, it indicates that the instance can transition to the next lifecycle states ('running' for launch hooks, 'terminated' for termination ones). If the signal is ABANDON, instances being launched are terminated, while instances terminating abort any other following action and terminate indeed. The lifecycle hooks timed out assume the default result indicated in hook's configuration.
+
+For this demo, a launch hook is provided for Auto Scaling Group (CloudFormation's resource EC2AutoScalingGroup). It is configured with a "pause" (HeartbeatTimeout) of XXX seconds. The "complete-lifecycle-action" is signaled from last task of playbook.yml, after deploy of web site in Apache's www folder.
 
 ### Updating Auto Scaling desired configuration
 
 1. Open EC2 console, navigate menu 'Auto Scaling' and click Auto Scaling Group created by stack (if using CloudFormation default parameters, it shall be named 'p006-sclng-grp');
 1. Under menu 'Details', click Edit button in 'Group Details:
-<p align="center"><img src="documents/howto-editgrpdetails.png" width="90%" height="90%"></p>
+<p align="center"><img src="documents/howto-editgrpdetails.png" width="85%" height="85%"></p>
 1. Input desired capacity to provision or delete instances:
    * Stack is provided with defaults 0, 1 and 3 for Minimum, Desired and Maximum capacities, respectively;
    * All capacities can be updated; desired capacity is the one that defines number of instances running;

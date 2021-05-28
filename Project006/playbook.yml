@@ -73,3 +73,18 @@
       ansible.builtin.copy:
         src: "{{ checkout_folder }}/{{ folder_to_clone }}/" #last slash determines that only the content shall be copied, not the folder itself
         dest: /var/www/html
+
+###########################################################################
+- name: Signal the Auto Scaling Group Lifecycle Hook with CONTINUE
+###########################################################################
+  hosts: 127.0.0.1
+  vars:
+    AWSEnvironmentName: p006
+    AWSRegion: region
+  tasks:
+    - name: Sending complete-lifecycle-action signal to active hook
+      #lifecycle-hook-name/auto-scaling-group-name shall be precisely the same configured in EC2AutoScalingGroup of cloudformation.yml
+      shell: aws autoscaling complete-lifecycle-action --lifecycle-action-result CONTINUE \
+             --instance-id $(curl http://instance-data/latest/meta-data/instance-id) \
+             --lifecycle-hook-name {{ AWSEnvironmentName }}-sclng-grp-lfhook --auto-scaling-group-name {{ AWSEnvironmentName }}-sclng-grp \
+             --region {{ AWSRegion }}

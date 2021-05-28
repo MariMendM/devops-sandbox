@@ -444,12 +444,8 @@ Resources:
              # sudo systemctl start amazon-ssm-agent
              # sudo systemctl enable amazon-ssm-agent
              #
-             # Signaling AutoScaling hook using CLI (parameters of command shall be exactly the same configured in EC2AutoScalingGroup)
+             # Install CLI, later used by Ansible's playbook to signal the "complete-lifecycle-action" to AutoScaling hook
              sudo apt install awscli -y
-             aws autoscaling complete-lifecycle-action --lifecycle-action-result CONTINUE \
-             --instance-id $(curl http://instance-data/latest/meta-data/instance-id) \
-             --lifecycle-hook-name ${EnvironmentName}-sclng-grp-lfhook --auto-scaling-group-name ${EnvironmentName}-sclng-grp \
-             --region ${AWS::Region}
 
   # Auto Scaling --------------------------------------------------------------------
   EC2AutoScalingGroup:
@@ -461,7 +457,7 @@ Resources:
       - SubnetPub2
       - SSMStateManagerAssociation
     Properties: 
-      AutoScalingGroupName: !Sub ${EnvironmentName}-sclng-grp #Always exactly same name configured inside RoleIAM4EC2
+      AutoScalingGroupName: !Sub ${EnvironmentName}-sclng-grp #always exactly same name configured inside RoleIAM4EC2 and playbook.yml
       MinSize: 0
       DesiredCapacity: 1
       MaxSize: 3
@@ -469,11 +465,12 @@ Resources:
       LaunchTemplate: 
         LaunchTemplateId: !Ref EC2LaunchTemplate
         Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
-      LifecycleHookSpecificationList: #signaling is inside EC2LaunchTemplate's UserData (if UserData runs OK, sends CONTINUE)
-        - DefaultResult: ABANDON #result assumed if no signaling is received from UserData inside 'HeartbeatTimeout' seconds
-          HeartbeatTimeout: 180 #it shall be sufficient for instance to start and to run UserData
-          LifecycleHookName: !Sub ${EnvironmentName}-sclng-grp-lfhook
-          LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
+      LifecycleHookSpecificationList:
+        #signaling of completion is raised by final task of playbook.yml (if playbook runs OK, sends CONTINUE)
+        - LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
+          LifecycleHookName: !Sub ${EnvironmentName}-sclng-grp-lfhook #always exactly same name configured inside playbook.yml
+          DefaultResult: CONTINUE #ABANDON #result assumed if no completion signal is received from playbook inside 'HeartbeatTimeout' seconds
+          HeartbeatTimeout: 600 #enough time for EC2 to launch / run UserData + State Manager executes ApplyAnsiblePlaybooks (installation/playbook)
       HealthCheckGracePeriod: 360 #how long before to start using ELB's health checking (HeartbeatTimeout + SSMStateManagerAssociation, at least)
       HealthCheckType: ELB #besides AutoScaling default EC2 status checks, it also considers ELB health checks (unhealthy when at least one fails)
       TargetGroupARNs: 
@@ -552,15 +549,15 @@ Resources:
     Properties:
       AssociationName: !Sub ${EnvironmentName}-ssm-statemngr-ansible-assoc
       Name: AWS-ApplyAnsiblePlaybooks
-      WaitForSuccessTimeoutSeconds: 180
+      WaitForSuccessTimeoutSeconds: 30 #seconds to wait for association status "success" (if it timeouts or fails, the entire stack creation fails)
       Targets:
         - Key: tag:Name
           Values:
             - !Sub ${EnvironmentName}-ec2 #exact the same as defined in EC2LaunchTemplate.TagSpecifications
-      # OutputLocation:
-        # S3Location: 
-          # OutputS3BucketName: !Ref SSMAssocLogs
-          # OutputS3KeyPrefix: 'logs/'
+      OutputLocation:
+        S3Location: 
+          OutputS3BucketName: cf-templates-1t49sbwymqz70-us-east-1
+          OutputS3KeyPrefix: !Sub '${EnvironmentName}-StateManager/'
       Parameters:
         SourceType:
           - GitHub
@@ -570,16 +567,14 @@ Resources:
               "repository": "devops-sandbox",
               "path": "Project006",
               "getOptions": "branch:master"}
-        InstallDependencies: #apt, python 3, ansible and unzip
+        InstallDependencies: #python 3, ansible and unzip
           - 'True'
         PlaybookFile:
-          - 'playbook.yml'
+          - playbook.yml
         ExtraVariables:
-          - 'SSM=True'
+          - !Sub SSM=True AWSEnvironmentName=${EnvironmentName} AWSRegion=${AWS::Region}
         Check:
           - 'False'
-        # Verbose:
-          # - '-v'
 
   ###################################################################################
 

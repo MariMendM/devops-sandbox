@@ -5,11 +5,10 @@
 * [Demo description](#demo-description)
 * [Repo files overview](#repo-files-overview)
 * [Preparing Environment](#preparing-environment)
-  * [Creating AWS CloudFormation stack](#create-aws-cloudformation-stack)
-  * [Opening site](#open-site)
+  * [Creating AWS CloudFormation stack](#creating-aws-cloudformation-stack)
+  * [Opening site](#opening-site)
 * [How to use](#how-to-use)
   * [Understanding instance availability time](#understanding-instance-availability-time)
-    * [Auto Scaling and ELB health checks explained](#auto-scaling-and-elb-health-checks-explained)
   * [Updating Auto Scaling desired configuration](#updating-auto-scaling-desired-configuration)
   * [Checking Auto Scaling configuration taking effect](#checking-auto-scaling-configuration-taking-effect)
 * [Next steps](#next-steps)
@@ -30,7 +29,7 @@ The ELB's DNS address can be opened to check web page's deployment, displaying I
 
 * Folder **website**:
   * simple webpage intended to provide a "visualization" of AWS infrastructure implemented in this demo. It actually only displays AWS EC2 meta-data from instances hosting the demo (documentation [here](website/README.md))
-  * <details><summary>see main diagram</summary><img src="website/documents/modules-organization-diagram.png"></details>
+  * <details><summary>see website modules diagram</summary><img src="website/documents/modules-organization-diagram.png"></details>
 * File **[cloudformation.yml](cloudformation.yml)**:
   * creates a VPC
     * 1 subnet (public);
@@ -59,7 +58,7 @@ The ELB's DNS address can be opened to check web page's deployment, displaying I
   * creates an Auto Scaling group, using EC2 template to launch instances into ELB
   * <details><summary>see CloudFormation diagram</summary><img src="documents/cloudformation-diagram.png"></details>
 * Files **[playbook.yml](playbook.yml)**:
-  * Playbook to install Apache and PHP, and to sparse checkout and deploy [Project006/website](Project006/website)
+  * Playbook to install Apache and PHP, and to sparse checkout and deploy website folder
     * 2 plays, tasks including 'apt', 'service', 'file, 'linefile', 'shell' and 'copy';
   * NOTE: take care with names of plays and tasks; to run a playbook within AWS Systems Manager documents, they cannot contain some chars that Ansible usually allows, such as \(\) or \-
 
@@ -100,7 +99,7 @@ They are not expected to deploy a machine in few minutes-->
 
 1. Open EC2 console, navigate menu 'Auto Scaling' and click Auto Scaling Group created by stack (if using CloudFormation default parameters, it shall be named 'p006-sclng-grp');
 1. Under menu 'Details', click Edit button in 'Group Details:
-<p align="center"><img src="documents/<howto-editgrpdetails.png" width="65%" height="65%"></p>
+<p align="center"><img src="documents/howto-editgrpdetails.png" width="90%" height="90%"></p>
 1. Input desired capacity to provision or delete instances:
    * Stack is provided with defaults 0, 1 and 3 for Minimum, Desired and Maximum capacities, respectively;
    * All capacities can be updated; desired capacity is the one that defines number of instances running;
@@ -112,7 +111,7 @@ They are not expected to deploy a machine in few minutes-->
    * when registering new instances, it will take time for the new instance(s) to engage in Load Balancer, as [previously explained](#autoscaling-and-elb-health-checks-explained)
    * when deregistering instances, it also takes times; but it shall be considerably shorter
 1. Refresh web page a few times: when instances finish registering, their IDs shall eventually appear in the page; when they deregister, they stop appearing.
-<p align="center"><img src="documents/<howto-result.png" width="65%" height="65%"></p>
+<p align="center"><img src="documents/howto-result.png" width="65%" height="65%"></p>
 
 ## Next steps
 

@@ -62,3 +62,14 @@ Sandbox for demos of tools usually involved in DevOps loop.
 <details><summary>Details</summary><img src="Project005/documents/cloudformation-diagram.png"></details>
 
 **Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway), EC2 (instances) and IAM roles :black_small_square: AWS Systems Manager (Run Command) :black_small_square: YAML
+
+---
+
+## Project006
+[![Generic badge](https://img.shields.io/badge/Status-InWork-yellow.svg)](https://shields.io/)
+
+**Purpose:** Demonstrate Ansible's playbook on AWS Cloud Services, deploying it using State Manager from AWS Systems Manager along with Auto Scaling provisioning of instances (documentation [here](Project006/README.md)).
+
+<details><summary>Details</summary><img src="Project006/documents/cloudformation-diagram.png"></details>
+
+**Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway), EC2 (Template, application ELB, AutoScaling), IAM (Roles and InstanceProfiles) and Systems Manager (State Manager) :black_small_square: AWS Systems Manager (Run Command) :black_small_square: YAML

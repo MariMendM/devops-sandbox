@@ -1275,7 +1275,7 @@ Resources:
                   - "s3:List*"
               - Effect: Allow
                 Resource:
-                  - !Sub arn:aws:ssm:us-east-1:767044525123:parameter/${SSMParam4BackendURLConfig}
+                  - !Sub arn:aws:ssm:us-east-1:${AWS::AccountId}:parameter/${SSMParam4BackendURLConfig}
                 Action:
                   - "ssm:GetParameter"
                   - "ssm:DescribeParameters"
@@ -1412,11 +1412,11 @@ Resources:
                   - "codebuild:BatchGetBuilds"
               - Effect: Allow
                 Resource:
-                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:application:${CodeDeployBackendApp}
-                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:deploymentgroup:${CodeDeployBackendApp}/${CodeDeployBackendDeplGroup}
-                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:application:${CodeDeployFrontendApp}
-                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:deploymentgroup:${CodeDeployFrontendApp}/${CodeDeployFrontendDeplGroup}
-                  - !Sub arn:aws:codedeploy:us-east-1:767044525123:deploymentconfig:*
+                  - !Sub arn:aws:codedeploy:us-east-1:${AWS::AccountId}:application:${CodeDeployBackendApp}
+                  - !Sub arn:aws:codedeploy:us-east-1:${AWS::AccountId}:deploymentgroup:${CodeDeployBackendApp}/${CodeDeployBackendDeplGroup}
+                  - !Sub arn:aws:codedeploy:us-east-1:${AWS::AccountId}:application:${CodeDeployFrontendApp}
+                  - !Sub arn:aws:codedeploy:us-east-1:${AWS::AccountId}:deploymentgroup:${CodeDeployFrontendApp}/${CodeDeployFrontendDeplGroup}
+                  - !Sub arn:aws:codedeploy:us-east-1:${AWS::AccountId}:deploymentconfig:*
                 Action:
                   - "codedeploy:GetApplication"
                   - "codedeploy:GetApplicationRevision"

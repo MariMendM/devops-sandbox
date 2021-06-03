@@ -1,13 +1,19 @@
 #----------------------------------------------------------------------
 Description:
   One VPC with
-  - 1 subnet (public);
-  - 1 route table (for public subnet);
+  - 2 subnets (public);
+  - 1 route table (for public subnets);
   - 1 internet gateway (route in public route table);
   - 1 NACL (for public traffic);
-  - 1 security group for ec2 instance;
-  - 3 EC2 instances (in public subnet), ansible and ssm-agent installed;
-  * By default VPC deploys 1 NACL and 1 SecGroup not reachable for changes by CloudFormation
+  - 1 security group for EC2 instances;
+  - 1 EC2 template, CLI installed;
+  - 1 IAM EC2 instance profile + role;
+  - 1 security group for ELB;
+  - 1 EC2 application ELB;
+  - 1 EC2 Auto Scaling (lifecycle hook included);
+  - 1 SSM State Manager association to AWS-ApplyAnsiblePlaybook document;
+  - 1 S3 bucket, if optional logs enabled for SSM State Manager.
+  By default VPC deploys 1 NACL and 1 SecGroup not reachable for changes by CloudFormation
 
 #----------------------------------------------------------------------
 #Metadata to define presentation of input parameters (AWS console interface)
@@ -20,6 +26,7 @@ Metadata:
           default: "General Configuration"
         Parameters:
           - EnvironmentName
+          - ExtendedLogOption
       - Label:
           default: "Network Configuration"
         Parameters: 
@@ -34,6 +41,8 @@ Metadata:
     ParameterLabels:
       EnvironmentName:
         default: Environment Name
+      ExtendedLogOption:
+        default: Log Option for State Manager execution
       VpcCIDR: 
         default: VPC IP range
       PublicSubnet1CIDR:
@@ -57,6 +66,15 @@ Parameters:
     AllowedPattern: ^\S+$
     MaxLength: 15
     ConstraintDescription: cannot have spaces neither be empty
+
+  ExtendedLogOption:
+    Description: TRUE for SSM State Manager full command output to S3; FALSE for standard truncated 2500 chars in console only
+    Type: String
+    AllowedValues:
+      - True
+      - False
+    Default: False
+    ConstraintDescription: must specify one of the options
 
   VpcCIDR:
     Description: Enter the IP range (CIDR notation) for VPC
@@ -89,6 +107,13 @@ Parameters:
   KeyPairName:
     Description: Enter keypair name for EC2 instances
     Type: AWS::EC2::KeyPair::KeyName
+
+#----------------------------------------------------------------------
+#Conditions for resource configuration
+#----------------------------------------------------------------------
+Conditions:
+
+  IsLogEnabled: !Equals [ !Ref ExtendedLogOption, True ] #Used to decide whether S3 bucket is created or not for State Manager logging
 
 #----------------------------------------------------------------------
 #Resources definition
@@ -456,26 +481,26 @@ Resources:
       - SubnetPub1
       - SubnetPub2
       - SSMStateManagerAssociation
-    Properties: 
+    Properties:
       AutoScalingGroupName: !Sub ${EnvironmentName}-sclng-grp #always exactly same name configured inside RoleIAM4EC2 and playbook.yml
       MinSize: 0
       DesiredCapacity: 1
       MaxSize: 3
-      Cooldown: 30 #amount of seconds to start a new scaling activity after the last finished one
-      LaunchTemplate: 
+      Cooldown: 30 #amount of seconds to start a new scaling activity after the last one has finished
+      LaunchTemplate:
         LaunchTemplateId: !Ref EC2LaunchTemplate
         Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
       LifecycleHookSpecificationList:
         #signaling of completion is raised by final task of playbook.yml (if playbook runs OK, sends CONTINUE)
         - LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
-          LifecycleHookName: !Sub ${EnvironmentName}-sclng-grp-lfhook #always exactly same name configured inside playbook.yml
-          DefaultResult: CONTINUE #ABANDON #result assumed if no completion signal is received from playbook inside 'HeartbeatTimeout' seconds
-          HeartbeatTimeout: 600 #enough time for EC2 to launch / run UserData + State Manager executes ApplyAnsiblePlaybooks (installation/playbook)
-      HealthCheckGracePeriod: 360 #how long before to start using ELB's health checking (HeartbeatTimeout + SSMStateManagerAssociation, at least)
+          LifecycleHookName: !Sub ${EnvironmentName}-sclng-grp-lfhook #exactly same name configured inside playbook.yml
+          DefaultResult: ABANDON #result assumed if no completion signal is received from playbook inside 'HeartbeatTimeout' seconds
+          HeartbeatTimeout: 420 #enough for: EC2 to start and run UserData + State Manager to execute AWS-ApplyAnsiblePlaybooks (installation/playbook)
       HealthCheckType: ELB #besides AutoScaling default EC2 status checks, it also considers ELB health checks (unhealthy when at least one fails)
-      TargetGroupARNs: 
+      HealthCheckGracePeriod: 0 #how long before to start using ELB's health checks (it starts counting after LifecycleHook completion or timeout)
+      TargetGroupARNs:
         - !Ref ELoadBalancerTargetGroup
-      VPCZoneIdentifier: 
+      VPCZoneIdentifier:
         - !Ref SubnetPub1
         - !Ref SubnetPub2
 
@@ -514,8 +539,8 @@ Resources:
       HealthCheckProtocol: HTTP
       HealthCheckPath: /
       HealthCheckPort: 80
-      HealthCheckIntervalSeconds: 5 #seconds between health checks
-      HealthCheckTimeoutSeconds: 4 #amount of seconds during which no response means a failed check (must be < HealthCheckIntervalSeconds)
+      HealthCheckIntervalSeconds: 8 #seconds between health checks (HealthCheckTimeoutSeconds is counted inside it)
+      HealthCheckTimeoutSeconds: 4 #amount of seconds during which no response means a failed check
       UnhealthyThresholdCount: 2 #number of consecutive checks failing before a healthy target becomes unhealthy
       HealthyThresholdCount: 2 #number of consecutive checks succeeding before an unhealthy target becomes healthy
       TargetGroupAttributes:
@@ -544,6 +569,17 @@ Resources:
   ###################################################################################
 
   # Systems Manager State Manager for Ansible execution #############################
+  SSMStateManagerS3Logs:
+    Type: AWS::S3::Bucket
+    Condition: IsLogEnabled
+    Properties:
+      AccessControl: Private
+      BucketName: !Sub ${EnvironmentName}-bucket-ssmlogs #Comment for auto-generated name
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-bucket-ssmlogs
+
+  # Systems Manager Association to document AWS-ApplyAnsiblePlaybooks ---------------
   SSMStateManagerAssociation:
     Type: AWS::SSM::Association
     Properties:
@@ -554,20 +590,20 @@ Resources:
         - Key: tag:Name
           Values:
             - !Sub ${EnvironmentName}-ec2 #exact the same as defined in EC2LaunchTemplate.TagSpecifications
-      OutputLocation:
-        S3Location: 
-          OutputS3BucketName: cf-templates-1t49sbwymqz70-us-east-1
-          OutputS3KeyPrefix: !Sub '${EnvironmentName}-StateManager/'
+      OutputLocation: # If IsLogEnabled, associates log location to S3 bucket; otherwise, don't
+        S3Location:
+          OutputS3BucketName: !If [ IsLogEnabled, !Ref SSMStateManagerS3Logs, !Ref AWS::NoValue ]
+          OutputS3KeyPrefix: !If [ IsLogEnabled, !Sub '${EnvironmentName}-StateManager/', !Ref AWS::NoValue ]
       Parameters:
         SourceType:
           - GitHub
-        SourceInfo:
+        SourceInfo: #where to find the playbook to run
           - !Sub |
               {"owner": "MariMendM",
               "repository": "devops-sandbox",
               "path": "Project006",
               "getOptions": "branch:master"}
-        InstallDependencies: #python 3, ansible and unzip
+        InstallDependencies: #ansible and unzip
           - 'True'
         PlaybookFile:
           - playbook.yml

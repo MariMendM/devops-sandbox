@@ -11,7 +11,8 @@ Description:
   - 1 security group for ELB;
   - 1 EC2 application ELB;
   - 1 EC2 Auto Scaling (lifecycle hook included);
-  - 1 SSM State Manager association to AWS-ApplyAnsiblePlaybook document;
+  - 1 SSM Custom Document to run Ansible playbook;
+  - 1 SSM State Manager association to custom document created;
   - 1 S3 bucket, if optional logs enabled for SSM State Manager.
   By default VPC deploys 1 NACL and 1 SecGroup not reachable for changes by CloudFormation
 
@@ -36,7 +37,7 @@ Metadata:
       - Label:
           default: "EC2 Configuration"
         Parameters:
-          - KeyPairName        
+          - KeyPairName
           - Ip4ServerConnection
     ParameterLabels:
       EnvironmentName:
@@ -494,8 +495,8 @@ Resources:
         #signaling of completion is raised by final task of playbook.yml (if playbook runs OK, sends CONTINUE)
         - LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
           LifecycleHookName: !Sub ${EnvironmentName}-sclng-grp-lfhook #exactly same name configured inside playbook.yml
-          DefaultResult: ABANDON #result assumed if no completion signal is received from playbook inside 'HeartbeatTimeout' seconds
-          HeartbeatTimeout: 420 #enough for EC2 to start and run UserData + State Manager to execute AWS-ApplyAnsiblePlaybooks (measured ~360 s)
+          DefaultResult: CONTINUE #ABANDON #result assumed if no completion signal is received from playbook inside 'HeartbeatTimeout' seconds
+          HeartbeatTimeout: 420 #enough for: EC2 to start and run UserData + State Manager to execute AWS-ApplyAnsiblePlaybooks (installation/playbook)
       HealthCheckType: ELB #besides AutoScaling default EC2 status checks, it also considers ELB health checks (unhealthy when at least one fails)
       HealthCheckGracePeriod: 0 #how long before to start using ELB's health checks (it starts counting after LifecycleHook completion or timeout)
       TargetGroupARNs:
@@ -579,12 +580,57 @@ Resources:
         - Key: Name
           Value: !Sub ${EnvironmentName}-bucket-ssmlogs
 
-  # Systems Manager Association to document AWS-ApplyAnsiblePlaybooks ---------------
+  # Systems Manager Custom Document for Ansible -------------------------------------
+  SSMDocumentCustomAnsible:
+    Type: AWS::SSM::Document
+    Properties: 
+      Name: !Sub ${EnvironmentName}-ssmdoc-ansible
+      DocumentFormat: YAML
+      DocumentType: Command
+      TargetType: /AWS::EC2::Instance
+      Content:
+        schemaVersion: "2.2"
+        description: Document to run Ansible Playbook from URL
+        parameters:
+          playbookURL:
+            description: The URL from playbook yml file (path from raw file, if from GitHub)
+            type: String
+          extravariables:
+            description: Parameters for Ansible extra-vars option
+            type: String
+        mainSteps:
+          - name: InstallRequirements
+            action: aws:runShellScript
+            inputs:
+              timeoutSeconds: 300
+              runCommand:
+                - echo InstallRequirements started at `date`...
+                - sudo apt update
+                - sudo apt install ansible -y
+                - echo InstallRequirements finished at `date`
+          - name: RunAnsiblePlaybook
+            action: aws:runShellScript
+            inputs:
+              timeoutSeconds: 90
+              runCommand:
+                - echo RunAnsiblePlaybook started at `date`...
+                - mkdir /tmp/demo-plbks
+                - cd /tmp/demo-plbks
+                - wget -O playbook.yml {{ playbookURL }}
+                - ansible-playbook -i "localhost" --extra-vars "{{ extravariables }}" playbook.yml
+                - rm -rf /tmp/demo-plbks
+                - echo RunAnsiblePlaybook finished at `date`
+      Tags: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ssmdoc-ansible
+
+  # Systems Manager Association to custom document ----------------------------------
   SSMStateManagerAssociation:
     Type: AWS::SSM::Association
+    DependsOn: SSMDocumentCustomAnsible
     Properties:
       AssociationName: !Sub ${EnvironmentName}-ssm-statemngr-ansible-assoc
-      Name: AWS-ApplyAnsiblePlaybooks
+      Name: !Ref SSMDocumentCustomAnsible
       WaitForSuccessTimeoutSeconds: 30 #seconds to wait for association status "success" (if it timeouts or fails, the entire stack creation fails)
       Targets:
         - Key: tag:Name
@@ -595,22 +641,10 @@ Resources:
           OutputS3BucketName: !If [ IsLogEnabled, !Ref SSMStateManagerS3Logs, !Ref AWS::NoValue ]
           OutputS3KeyPrefix: !If [ IsLogEnabled, !Sub '${EnvironmentName}-StateManager/', !Ref AWS::NoValue ]
       Parameters:
-        SourceType:
-          - GitHub
-        SourceInfo: #where to find the playbook to run
-          - !Sub |
-              {"owner": "MariMendM",
-              "repository": "devops-sandbox",
-              "path": "Project006",
-              "getOptions": "branch:master"}
-        InstallDependencies: #ansible and unzip
-          - 'True'
-        PlaybookFile:
-          - playbook.yml
-        ExtraVariables:
+        playbookURL:
+          - https://raw.githubusercontent.com/MariMendM/devops-sandbox/master/Project006/playbook.yml
+        extravariables:
           - !Sub SSM=True AWSEnvironmentName=${EnvironmentName} AWSRegion=${AWS::Region}
-        Check:
-          - 'False'
 
   ###################################################################################
 

@@ -9,6 +9,9 @@
         name: apache2, php
         state: present
         update_cache: yes
+      register: apt_action
+      retries: 20 #if apt is locked by either /var/lib/dpkg/lock-frontend or /var/lib/dpkg/lock
+      until: apt_action is success or ('/var/lib/dpkg/lock-frontend' not in apt_action.msg and '/var/lib/dpkg/lock' not in apt_action.msg)
 
     - name: Starting and enabling Apache in boot
       become: yes
@@ -23,6 +26,7 @@
 - name: Sparse checkout https://github.com/MariMendM/devops-sandbox/Project006/website
 ###########################################################################
   hosts: 127.0.0.1
+  gather_facts: false
   vars:
     checkout_folder: /home/ubuntu/devops-sandbox
     folder_to_clone: Project006/website
@@ -67,6 +71,7 @@
 - name: Copy website to Apache folder
 ###########################################################################
   hosts: 127.0.0.1
+  gather_facts: false
   tasks:
     - name: Copying
       become: yes
@@ -78,6 +83,7 @@
 - name: Signal the Auto Scaling Group Lifecycle Hook with CONTINUE
 ###########################################################################
   hosts: 127.0.0.1
+  gather_facts: false
   vars:
     AWSEnvironmentName: p006
     AWSRegion: region

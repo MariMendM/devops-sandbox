@@ -495,8 +495,8 @@ Resources:
         #signaling of completion is raised by final task of playbook.yml (if playbook runs OK, sends CONTINUE)
         - LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
           LifecycleHookName: !Sub ${EnvironmentName}-sclng-grp-lfhook #exactly same name configured inside playbook.yml
-          DefaultResult: CONTINUE #ABANDON #result assumed if no completion signal is received from playbook inside 'HeartbeatTimeout' seconds
-          HeartbeatTimeout: 420 #enough for: EC2 to start and run UserData + State Manager to execute AWS-ApplyAnsiblePlaybooks (installation/playbook)
+          DefaultResult: ABANDON #result assumed if no completion signal is received from playbook inside 'HeartbeatTimeout' seconds
+          HeartbeatTimeout: 180 #enough for EC2 to start and run UserData + State Manager to execute SSMDocumentCustomAnsible (measured ~120 s)
       HealthCheckType: ELB #besides AutoScaling default EC2 status checks, it also considers ELB health checks (unhealthy when at least one fails)
       HealthCheckGracePeriod: 0 #how long before to start using ELB's health checks (it starts counting after LifecycleHook completion or timeout)
       TargetGroupARNs:
@@ -602,7 +602,7 @@ Resources:
           - name: InstallRequirements
             action: aws:runShellScript
             inputs:
-              timeoutSeconds: 300
+              timeoutSeconds: 90 #measured ~30 s
               runCommand:
                 - echo InstallRequirements started at `date`...
                 - sudo apt update
@@ -611,7 +611,7 @@ Resources:
           - name: RunAnsiblePlaybook
             action: aws:runShellScript
             inputs:
-              timeoutSeconds: 90
+              timeoutSeconds: 150 #measured ~90 s
               runCommand:
                 - echo RunAnsiblePlaybook started at `date`...
                 - mkdir /tmp/demo-plbks

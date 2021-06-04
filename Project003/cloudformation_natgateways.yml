@@ -85,11 +85,12 @@ Metadata:
 Parameters:
 
   EnvironmentName:
-    Description: Enter an environment name to be prefixed to tag 'Name' of resources (max size 15)
+    Description: Enter an environment name to be prefixed to tag 'Name' of resources (no spaces, max size 15, lowercase)
     Type: String
-    AllowedPattern: ^\S+$
+    Default: p006
+    AllowedPattern: ^((?:[0-9a-z-])+) #^\S+$
     MaxLength: 15
-    ConstraintDescription: cannot have spaces neither be empty
+    ConstraintDescription: lowercase alphanumeric and hyphens, not empty, no spaces, max 15 chars
 
   EnvType: 
     Description: Choose environment type

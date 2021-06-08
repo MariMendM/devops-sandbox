@@ -12,7 +12,8 @@ Description:
   - 1 EC2 application ELB;
   - 1 EC2 Auto Scaling (lifecycle hook included);
   - 1 SSM State Manager association to AWS-ApplyAnsiblePlaybook document;
-  - 1 S3 bucket, if optional logs enabled for SSM State Manager.
+  - 1 S3 bucket, if optional logs enabled for SSM State Manager;
+  - 1 SNS Topic and IAM role, if notifications enabled.
   By default VPC deploys 1 NACL and 1 SecGroup not reachable for changes by CloudFormation
 
 #----------------------------------------------------------------------
@@ -23,21 +24,26 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: "General Configuration"
+          default: General Configuration
         Parameters:
           - EnvironmentName
           - ExtendedLogOption
       - Label:
-          default: "Network Configuration"
+          default: Network Configuration
         Parameters: 
           - VpcCIDR
           - PublicSubnet1CIDR
           - PublicSubnet2CIDR
       - Label:
-          default: "EC2 Configuration"
+          default: EC2 Configuration
         Parameters:
-          - KeyPairName        
+          - KeyPairName
           - Ip4ServerConnection
+      - Label:
+          default: Notification
+        Parameters:
+          - NotificationOption
+          - EmailForNotification
     ParameterLabels:
       EnvironmentName:
         default: Environment Name
@@ -53,6 +59,10 @@ Metadata:
         default: IP address (or range) for connection to public servers
       KeyPairName:
         default: KeyPair for EC2 instances
+      EmailForNotification:
+        default: Email to receive notifications
+      NotificationOption:
+        default: Notification option
 
 #----------------------------------------------------------------------
 #Input parameters for user to fulfill
@@ -74,6 +84,22 @@ Parameters:
       - True
       - False
     Default: False
+    ConstraintDescription: must specify one of the options
+
+  EmailForNotification:
+    Description: Enter the email to receive SNS project's notifications
+    Type: String
+    Default: labs.marimm@gmail.com #mail@domain.com
+    AllowedPattern: ^\S+$
+    ConstraintDescription: not empty, no spaces
+
+  NotificationOption:
+    Description: TRUE to enable notification emails; FALSE otherwise
+    Type: String
+    AllowedValues:
+      - True
+      - False
+    Default: True
     ConstraintDescription: must specify one of the options
 
   VpcCIDR:
@@ -114,6 +140,7 @@ Parameters:
 Conditions:
 
   IsLogEnabled: !Equals [ !Ref ExtendedLogOption, True ] #Used to decide whether S3 bucket is created or not for State Manager logging
+  IsSNSEnabled: !Equals [ !Ref NotificationOption, True ] #Used to decide whether to send email using SNS or not
 
 #----------------------------------------------------------------------
 #Resources definition
@@ -395,19 +422,55 @@ Resources:
       CidrIp: 0.0.0.0/0
 
   ###################################################################################
-  
+
+  # SNS #############################################################################
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Condition: IsSNSEnabled
+    Properties: 
+      TopicName: !Sub ${EnvironmentName}-project-topic
+      Subscription: 
+        - Endpoint: !Ref EmailForNotification
+          Protocol: email
+      Tags: 
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-sns-topic
+
+  IAMRoleSNSAutoScaling:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Sub Allows Auto Scaling to publish to SNS
+      RoleName: !Sub ${EnvironmentName}-sns-atsclng-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - autoscaling.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: !Sub /${EnvironmentName}/roles/
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AutoScalingNotificationAccessRole
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-sns-atsclng-role
+
+  ###################################################################################
+
   # EC2 #############################################################################
   # IAM Profile for instances -------------------------------------------------------
   IAMInstanceProfile4EC2:
     Type: AWS::IAM::InstanceProfile
-    DependsOn: RoleIAM4EC2
+    DependsOn: IAMRole4EC2
     Properties:
       InstanceProfileName: !Sub ${EnvironmentName}-instance-profile
       Path: !Sub /${EnvironmentName}/instprofiles/
       Roles:
-         - !Ref RoleIAM4EC2
+         - !Ref IAMRole4EC2
 
-  RoleIAM4EC2:
+  IAMRole4EC2:
     Type: AWS::IAM::Role
     Properties:
       Description: !Sub Allows EC2 instances from ${EnvironmentName} to have access and to be managed by SSM
@@ -421,7 +484,7 @@ Resources:
                 - ec2.amazonaws.com
             Action:
               - "sts:AssumeRole"
-      Path: !Sub /${EnvironmentName}/instprofile/roles/ #for better organization
+      Path: !Sub /${EnvironmentName}/roles/
       ManagedPolicyArns: 
         - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonEC2RoleforSSM #SSM allowed to manage EC2 instance by ssm-agent
       Policies:
@@ -462,15 +525,16 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
              #!/bin/bash -xe
+             echo UserData started at `date`...
+             #
              sudo apt update
              #
-             # Install SSM-Agent (it is pre-installed; if necessary at any time, following commands will serve)
-             # sudo apt install amazon-ssm-agent -y
-             # sudo systemctl start amazon-ssm-agent
-             # sudo systemctl enable amazon-ssm-agent
+             # SSM-Agent is preinstalled on 'ami-0885b1f6bd170450c'; changing AMI may require install; insert commands here
              #
              # Install CLI, later used by Ansible's playbook to signal the "complete-lifecycle-action" to AutoScaling hook
              sudo apt install awscli -y
+             #
+             echo UserData finished at `date`
 
   # Auto Scaling --------------------------------------------------------------------
   EC2AutoScalingGroup:
@@ -482,7 +546,7 @@ Resources:
       - SubnetPub2
       - SSMStateManagerAssociation
     Properties:
-      AutoScalingGroupName: !Sub ${EnvironmentName}-sclng-grp #always exactly same name configured inside RoleIAM4EC2 and playbook.yml
+      AutoScalingGroupName: !Sub ${EnvironmentName}-sclng-grp #always exactly same name configured inside IAMRole4EC2 and playbook.yml
       MinSize: 0
       DesiredCapacity: 1
       MaxSize: 3
@@ -495,7 +559,9 @@ Resources:
         - LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
           LifecycleHookName: !Sub ${EnvironmentName}-sclng-grp-lfhook #exactly same name configured inside playbook.yml
           DefaultResult: ABANDON #result assumed if no completion signal is received from playbook inside 'HeartbeatTimeout' seconds
-          HeartbeatTimeout: 420 #enough for EC2 to start and run UserData + State Manager to execute AWS-ApplyAnsiblePlaybooks (measured ~360 s)
+          HeartbeatTimeout: 420 #enough for EC2 to run UserData + State Manager to execute AWS-ApplyAnsiblePlaybooks (measured ~360 s)
+          NotificationTargetARN: !If [ IsSNSEnabled, !Ref SNSTopic, !Ref AWS::NoValue ]
+          RoleARN: !If [ IsSNSEnabled, !GetAtt IAMRoleSNSAutoScaling.Arn, !Ref AWS::NoValue ]
       HealthCheckType: ELB #besides AutoScaling default EC2 status checks, it also considers ELB health checks (unhealthy when at least one fails)
       HealthCheckGracePeriod: 0 #how long before to start using ELB's health checks (it starts counting after LifecycleHook completion or timeout)
       TargetGroupARNs:
@@ -503,6 +569,11 @@ Resources:
       VPCZoneIdentifier:
         - !Ref SubnetPub1
         - !Ref SubnetPub2
+      NotificationConfigurations:
+        - NotificationTypes:
+            - autoscaling:EC2_INSTANCE_LAUNCH
+            - autoscaling:EC2_INSTANCE_TERMINATE
+          TopicARN: !If [ IsSNSEnabled, !Ref SNSTopic, !Ref AWS::NoValue ]
 
   # Load Balancer -------------------------------------------------------------------
   ELoadBalancer:

@@ -9,10 +9,8 @@ Sandbox for demos of tools usually involved in DevOps loop.
 
 **Purpose:** Demonstrate a Jenkins' pipeline triggered by GitHub's webhook, building a Docker image to host a very simple website (documentation [here](Project001/README.md)).
 
-  <details>
-    <summary>Jenkins diagram</summary>
-    <img src="Project001/documents/jenkins-diagram.png">
-  </details>
+<details><summary>CloudFormation diagram</summary><img src="Project001/documents/cloudformation-diagram.png"></details>
+<details><summary>Jenkins diagram</summary><img src="Project001/documents/jenkins-diagram.png"></details>
 
 **Tools and technologies:** Jenkins :black_small_square: GitHub :black_small_square: Docker :black_small_square: DockerHub :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML
 
@@ -23,7 +21,7 @@ Sandbox for demos of tools usually involved in DevOps loop.
 
 **Purpose:** Demonstrate Ansible's automated configuration over AWS Cloud, provisioning CloudFormation stack from Ansible playbook (documentation [here](Project002/README.md)).
 
-<details><summary>Details</summary><img src="Project002/documents/cloudformation-diagram.png"></details>
+<details><summary>CloudFormation diagram</summary><img src="Project002/documents/cloudformation-diagram.png"></details>
 
 **Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway) and EC2 (instances) :black_small_square: YAML :black_small_square: JSON
 
@@ -39,7 +37,7 @@ Sandbox for demos of tools usually involved in DevOps loop.
 <details><summary>Rest C++ API diagram</summary><img src="Project003/serverapp/documents/restapi-logic-diagram.png"></details>
 <details><summary>WebPage diagram</summary><img src="Project003/webclient/documents/modules-organization-diagram.png"></details>
 
-**Tools and technologies:** AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway, NATGateway/NATinstances, EIP), EC2 (Instances, application ELB), CodePipeline (CodeCommit, CodeBuild, CodeDeploy), IAM (Roles, InstanceProfiles) and Systems Manager (Param Store) :black_small_square: C++ :black_small_square: HTML :black_small_square: PHP :black_small_square: JSON :black_small_square: YAML
+**Tools and technologies:** AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway, NATGateway/NATinstances, EIP), EC2 (Instances, application ELB), S3 (bucket), CodePipeline (CodeCommit, CodeBuild, CodeDeploy), IAM (Roles, InstanceProfiles) and Systems Manager (Param Store) :black_small_square: C++ :black_small_square: HTML :black_small_square: PHP :black_small_square: JSON :black_small_square: YAML
 
 ---
 
@@ -59,17 +57,19 @@ Sandbox for demos of tools usually involved in DevOps loop.
 
 **Purpose:** Demonstrate Ansible's playbooks into AWS Cloud Services, deploying them using Run Command from AWS Systems Manager (documentation [here](Project005/README.md)).
 
-<details><summary>Details</summary><img src="Project005/documents/cloudformation-diagram.png"></details>
+<details><summary>CloudFormation diagram</summary><img src="Project005/documents/cloudformation-diagram.png"></details>
 
 **Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway), EC2 (instances) and IAM roles :black_small_square: AWS Systems Manager (Run Command) :black_small_square: YAML
 
 ---
 
 ## Project006
-[![Generic badge](https://img.shields.io/badge/Status-InWork-yellow.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Status-PendingDoc-yellow.svg)](https://shields.io/)
 
 **Purpose:** Demonstrate Ansible's playbook on AWS Cloud Services, deploying it using State Manager from AWS Systems Manager along with Auto Scaling provisioning of instances (documentation [here](Project006/README.md)).
 
-<details><summary>Details</summary><img src="Project006/documents/cloudformation-diagram.png"></details>
+<details><summary>CloudFormation diagram (Pending)</summary><img src="Project006/documents/cloudformation-diagram.png"></details>
+<details><summary>Ansible Playbook diagram (Pending)</summary><img src="Project006/documents/ansible-playbook-diagram.png"></details>
+<details><summary>WebPage diagram</summary><img src="Project006/website/documents/modules-organization-diagram.png"></details>
 
-**Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway), EC2 (Template, application ELB, AutoScaling), IAM (Roles and InstanceProfiles) and Systems Manager (State Manager) :black_small_square: AWS Systems Manager (Run Command) :black_small_square: YAML
+**Tools and technologies:** Ansible :black_small_square: AWS CloudFormation containing VPC (Subnets, Route Tables, Network ACLs, SecGroups, Internet Gateway), EC2 (Template, application ELB, AutoScaling), S3 (bucket), IAM (Roles and InstanceProfiles), Systems Manager (State Manager) and SNS (Topic) :black_small_square: AWS Systems Manager (Run Command) :black_small_square: YAML :black_small_square: HTML :black_small_square: PHP

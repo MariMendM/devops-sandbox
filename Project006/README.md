@@ -13,10 +13,13 @@
     * [Auto Scaling Lifecycle Hook](#auto-scaling-lifecycle-hook)
     * [Auto Scaling using ELB health checks](#auto-scaling-using-elb-health-checks)
     * [ELB deregistering time](#elb-deregistering-time)
-    * [Consideration about testing times](#consideration-about-testing-times)
+    * [Consideration about running times](#consideration-about-running-times)
+    * [What to expect for testing times](#what-to-expect-for-testing-times)
   * [Updating Auto Scaling Desired Capacity configuration](#updating-auto-scaling-desired-capacity-configuration)
   * [Checking Auto Scaling configuration taking effect](#checking-auto-scaling-configuration-taking-effect)
-* [Next steps](#next-steps)
+```diff
+# Reminder: some diagrams included in documentation are Draw.io's editable layered PNGs.
+```
 
 ## Demo description
 
@@ -25,30 +28,22 @@ Demonstrate Ansible's playbook deploying a web page on AWS Cloud with Auto Scali
 The CloudFormation deploys a stack containing an EC2 Template for Auto Scaling, that is associated to an ELB. During EC2 instances provisioning by Auto Scaling, the Systems Manager's State Manager is used to run a command using:
 * the document 'AWS-ApplyAnsiblePlaybooks', in template named "cloudformation-ssdocamazon.yml"; or
 * the document created by stack, with similar function, in template named "cloudformation-ssmdoccustom.yml".
-The ELB takes part with Health Checks for EC2, controlling traffic and registering/deregistering instances according to Auto Scaling actions.
 
-The ELB's DNS address can be opened to check web page's deployment, displaying IDs of healthy instances provisioned by Auto Scaling.
-
-```diff
-# Reminder: all diagrams included in documentation are Draw.io's editable layered PNGs.
-```
+In both cases, the ELB takes part with Health Checks for EC2, controlling traffic and registering/deregistering instances according to Auto Scaling actions. The ELB's DNS address prvoides the link to check web page's deployment, displaying IDs of healthy instances provisioned by Auto Scaling.
 
 ## Repo files overview
 
 * Folder **website**:
-  * simple webpage intended to provide a "visualization" of AWS infrastructure implemented in this demo. It actually only displays AWS EC2 meta-data from instances hosting the demo (documentation [here](website/README.md))
-  * <details><summary>see website modules diagram</summary><img src="website/documents/modules-organization-diagram.png"></details>
+  * simple webpage intended to provide a "visualization" of AWS infrastructure implemented in this demo, by displaying AWS EC2 meta-data from instances hosting the demo (documentation [here](website/README.md))
+  * <details><summary>click to preview website modules diagram</summary><img src="website/documents/modules-organization-diagram.png"></details>
 * Files **cloudformation/*.yml**:
   * creates a VPC
-    * 1 subnet (public);
-    * 1 route table (for public subnet);
+    * 2 subnets (public);
+    * 1 route table (for public subnets);
     * 1 internet gateway (route in public route table);
-    * 1 network NACL (for public traffic)
+    * 1 network ACL (for public traffic)
       * HTTP/HTTPS/Ephemeral allowed for In/Outbound to CIDR 0.0.0.0/0
       * SSH allowed for In/Outbound to CIDR provided for maintenance
-  * creates a security group for instances
-    * HTTP/HTTPS allowed for Inbound to CIDR 0.0.0.0/0
-    * SSH allowed for Inbound to CIDR provided for maintenance
   * creates security groups
     * 1 for EC2 public instances
       * HTTP/HTTPS allowed for Inbound to CIDR 0.0.0.0/0
@@ -61,36 +56,38 @@ The ELB's DNS address can be opened to check web page's deployment, displaying I
   * creates an EC2 template to launch instances
     * t2.micro;
     * ubuntu 20.04;
-    * CLI installed by cloud init
+    * AWS CLI installed by UserData
   * creates an application ELB, internet-facing, with listener HTTP at port 80 targeting public instances
   * creates an Auto Scaling group, using EC2 template to launch instances into ELB
-  * creates an Systems Manager's State Manager Association
-    * using the document 'AWS-ApplyAnsiblePlaybooks', owned by Amazon, in template named "-ssmdocamazon.yml";
-    * using the document '<environmentname>-ssmdoc-ansible', created by template itself, in template named "-ssmdoccustom.yml";
-  * creates an S3 bucket for Systems Manager's State Manager extended log (optional)
-  * <details><summary>see CloudFormation diagram</summary><img src="documents/cloudformation-diagram.png"></details>
+  * creates a Systems Manager's State Manager Association
+    * using the document 'AWS-ApplyAnsiblePlaybooks', owned by Amazon, in template named "cloudformation-ssmdocamazon.yml";
+    * using the document '\<environmentname\>-ssmdoc-ansible', created by template itself, in template named "cloudformation-ssmdoccustom.yml";
+  * creates a S3 bucket for Systems Manager's State Manager extended log (optional)
+  * creates a SNS topic for Auto Scaling mails (optional)
+  * <details><summary>click to preview CloudFormation diagram</summary><img src="documents/cloudformation-diagram.png"></details>
 * File **[playbook.yml](playbook.yml)**:
   * Playbook to install Apache and PHP, and to sparse checkout and deploy website folder
     * 2 plays, tasks including 'apt', 'service', 'file, 'linefile', 'shell' and 'copy';
-  * NOTE: take care with names of plays and tasks; to run a playbook within AWS Systems Manager documents, they cannot contain some chars that Ansible usually allows, such as \(\) or \-
+  * NOTE: to run a playbook within AWS Systems Manager documents, names of plays/tasks cannot contain some chars that Ansible usually allows, such as \(\) or \-
+  * <details><summary>click to preview Playbook diagram</summary><img src="documents/ansible-playbook-diagram.png"></details>
 
 ## Preparing environment
 
 ### Creating AWS CloudFormation stack
 
-In AWSCloudFormation console, create stack using cloudformation.yml file. Parameters:
+In AWSCloudFormation console, create stack using cloudformation\*.yml files. Parameters:
 * General Configuration
   * Environment Name: the name to be used for tagging resources created by stack
   * Log Option for State Manager execution: choose 'true' to have SSM State Manager full command output to S3, or 'false' to keep the standard output truncated at 2500 chars in console only
 * Network Configuration
-  * VPC IP range: CIDR block for VPC created by stack (cannot be already in use)
+  * VPC IP range: CIDR block for VPC created by stack
   * 1st/2nd Public Subnet VPC IP range: CIDR block for public subnets 1 and 2; they must be in accordance to VPC's CIDR block; they cannot conflict with CIDR block from each other
 * EC2 Configuration
   * KeyPair for EC2 instances: select an already existent key-pair
-  * Ip4ServerConnection: IP or CIDR block from machines that can SSH EC2 public instances
+  * Ip4ServerConnection: IP or CIDR block from machines that can SSH EC2 public instances for maintenance
 * Notifications
   * Notification option: choose 'true' to enable SNS emails over Auto Scaling actions, or 'false' to disable email notifications
-  * Email to receive notifications: the email to receive SNS notifications
+  * Email to receive notifications: the email to receive SNS notifications, when enabled
 
 ### Confirming SNS subscription
 
@@ -98,10 +95,7 @@ With notifications enabled, the provided email will receive a message named "AWS
 
 ### Opening site
 
-Open the DNS address provided by CloudFormation to ELB:
-   * DNS found in CloudFormation's output as "DNS of Elastic Load Balancer"
-
-It shall display message "503 Service Temporarily Unavailable" until everything is in place (AutoScaling and ELB health checks, plus State Manager execution). Next section explains total amount of time expected for the first instance to get fully running and how to test the addition/removal of new instances using Auto Scaling.
+Open the DNS address provided by CloudFormation to ELB (found in CloudFormation's output as "DNS of Elastic Load Balancer"). It shall display message "503 Service Temporarily Unavailable" until everything is in place (AutoScaling, State Manager execution and ELB health checks). Next section explains total amount of time expected for the instances to get fully running and how to test the addition/removal of new instances using Auto Scaling.
 
 ## How to use
 
@@ -143,7 +137,7 @@ ELoadBalancerTargetGroup:
   HealthyThresholdCount: 2 #number of consecutive checks succeeding before an unhealthy target becomes healthy
 ```
 
-When Auto Scaling is configured to use ELB's health checks, it starts to actually use them 'HealthCheckGracePeriod' seconds after Lifecycle Hook completion or timeout. The completion signal is raised inside Ansible's playbook, after the web site is deployed in Apache's www folder. That said, the 'HealthCheckGracePeriod' was configured to zero, once that the health checks in path \'\/\' can be started right away:
+When Auto Scaling is configured to use ELB's health checks, it starts to actually use them 'HealthCheckGracePeriod' seconds after Lifecycle Hook completion or timeout. The completion signal is raised inside Ansible's playbook right after the web site is deployed in Apache's www folder. That said, the 'HealthCheckGracePeriod' was configured to zero, once that the health checks in path \'\/\' can be started right away:
 ```yaml
 EC2AutoScalingGroup:
   HealthCheckType: ELB #besides AutoScaling default EC2 status checks, it also considers ELB health checks (unhealthy when at least one fails)
@@ -163,19 +157,20 @@ ELoadBalancerTargetGroup:
       Value: 30
 ```
 
-#### Consideration about testing times
+#### Consideration about running times
 
-Below figures show some measuring of times over important events for both stacks:
-<p align="center"><img src="documents/howto-measure-ssmdocamazon.png" width="85%" height="85%"></p>
-<p align="center"><img src="documents/howto-measure-ssmdoccustom.png" width="85%" height="85%"></p>
+Several measures were performed for the two cloudformation stacks. Below figures show examples of time measuring over important events for both:
+<p align="center"><img src="documents/howto-measure-ssmdocamazon.png" width="100%" height="100%"></p>
+<p align="center"><img src="documents/howto-measure-ssmdoccustom.png" width="100%" height="100%"></p>
 
 The images pinpoint some important considerations to take when determining testing times (and even to drive some design decisions):
-
 1. some events cannot be configured and thus have to be considered in average, for example:
    * the time between update of Auto Scaling desired capacity (1) and the actual launch of instance (2), where measures vary from 5 to 25 seconds (average ~15);
    * the time between the starting of instance launch (2) and the creation of lifecycle hook (4), measured ~30 seconds;
    * the time between lifecycle hook launch (4) and State Manager document association (not represented), after which the document is run (6), where measures vary from 30 to 55 seconds (average ~40);
-1. some events, besides to have to be considered in average, also happen in parallel to others, requiring even some design decisions to avoid problems. Is the case of the State Manager association that happens when UserData is still running, which means that playbook's task using 'apt' might compete for locks with UserData, installing AWS CLI. This situation defined the necessity of the ansible.builtin.apt configuration for retries inside playbook.
+1. some events, besides to have to be considered in average, also happen in parallel to others, requiring even some design decisions to avoid problems. Is the case of the State Manager association which happens when UserData is still running, meaning that playbook's task using 'apt' might compete for locks with UserData when installing AWS CLI. This situation defined, for example, the necessity of the 'ansible.builtin.apt' configuration for retries inside playbook.
+
+#### What to expect for testing times
 
 For all the exposed so far, we can consider for each instance scaled-out in Auto Scaling (through increase of Desired Capacity), that:
 * the average time between to change auto scaling capacity and the instance to start launching is ~15 seconds;
@@ -187,7 +182,7 @@ For all the exposed so far, we can consider for each instance scaled-out in Auto
   * for "cloudformation-ssdocamazon.yml", this means completion of lifecycle around 380 seconds after launch of instances, plus 2 checks of 8 seconds each, resulting in ~395 seconds;
   * for "cloudformation-ssdoccustom.yml", this means completion of lifecycle around 150 seconds after launch of instances, plus 2 checks of 8 seconds each, resulting in ~165 seconds;
   
-Summing up, it takes ~440 or ~210 seconds, depending of the stack used, for registering instances start to appear in refreshes of web site deployed. Considering that all measures are averages, variations up/down may apply.
+Summing up, it takes ~440 or ~210 seconds, depending of the stack used, for healthy registering instances start to appear in refreshes of web site deployed. In case of failures, it takes ~460 or ~240 seconds for instances to get terminated. Considering that all measures are averages, variations up/down may apply.
 
 Instances scaled-in (decreasing Desired Capacity) will be deregistered much faster from ELB, given the small draining time 'deregistration_delay.timeout_seconds' configured (30 seconds).
 
@@ -203,12 +198,6 @@ Instances scaled-in (decreasing Desired Capacity) will be deregistered much fast
 
 ### Checking Auto Scaling configuration taking effect
 
-1. When the update of Auto Scaling configuration is confirmed, it will start to register/deregister instances according new desired capacity, taking approximately the time [previously explained](#autoscaling-and-elb-health-checks-explained) for the new instance(s) to engage or leave Load Balancer;
+1. When the update of Auto Scaling configuration is confirmed, it will start to register/deregister instances according new desired capacity, taking approximately the time [previously explained](#what-to-expect-for-testing-times) for the new instance(s) to engage or leave Load Balancer;
 1. Refresh web page a few times: when instances finish registering, their IDs shall eventually appear in the page; when they deregister, they stop appearing.
 <p align="center"><img src="documents/howto-result.png" width="65%" height="65%"></p>
-
-## Next steps
-
-* Add missing cloudformation diagram
-* REVIEW DOCUMENT WITH ATTENTION! =D
-

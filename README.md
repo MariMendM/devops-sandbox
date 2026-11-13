@@ -1,6 +1,8 @@
 # DevOps Sandbox Projects
 
-Sandbox for demos of tools usually involved in DevOps loop.
+Sandbox for demos of tools usually involved in DevOps practices.
+
+See [Wiki](https://github.com/MariMendM/devops-sandbox/wiki) for more content and the list of all tools and AWS services used across projects!
 
 ---
 
